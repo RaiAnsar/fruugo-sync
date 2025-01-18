@@ -5,176 +5,261 @@ if (!defined('ABSPATH')) {
 
 /**
  * Handles all API interactions with Fruugo
+ * Supports both v3 JSON API and legacy XML endpoints
  */
 class FruugoSync_API {
     /**
-     * @var string API base URL
+     * API URLs
      */
-    private $api_base_url = 'https://api.fruugo.com/v3/';
+    private $api_urls = array(
+        'v3_base' => 'https://marketplace.fruugo.com/v3/',
+        'v3_order' => 'https://order-api.fruugo.com/v3/',
+        'legacy' => 'https://www.fruugo.com/',
+        'inventory' => 'https://www.fruugo.com/stockstatus-api'
+    );
 
     /**
-     * @var FruugoSync_Settings
+     * @var array Stored credentials
      */
-    private $settings;
+    private $credentials;
 
     /**
      * Constructor
      */
     public function __construct() {
-        $this->settings = new FruugoSync_Settings();
+        $this->init_credentials();
     }
 
     /**
-     * Make an API request to Fruugo
+     * Initialize API credentials
      */
-    private function make_request($endpoint, $method = 'GET', $body = null) {
-        $credentials = $this->settings->get_api_credentials();
-        
-        if (empty($credentials['username']) || empty($credentials['password'])) {
-            return array(
-                'success' => false,
-                'message' => __('API credentials are not configured.', 'fruugosync')
-            );
-        }
-    
-        $args = array(
-            'method'      => $method,
-            'timeout'     => 90,    // Increased timeout
-            'redirection' => 5,
-            'httpversion' => '1.1',
-            'blocking'    => true,
-            'headers'     => array(
-                'Authorization' => 'Basic ' . base64_encode($credentials['username'] . ':' . $credentials['password']),
-                'Content-Type'  => 'application/json',
-                'Accept'        => 'application/json',
-                'X-Correlation-ID' => uniqid('fruugosync_'),
-            ),
-            'cookies'     => array(),
-            'sslverify'   => false  // Try with SSL verification disabled if having issues
+    private function init_credentials() {
+        $saved_details = get_option('ced_fruugo_details', array());
+        $this->credentials = array(
+            'username' => isset($saved_details['userString']) ? $saved_details['userString'] : '',
+            'password' => isset($saved_details['passString']) ? $saved_details['passString'] : ''
         );
-    
-        if ($body) {
-            $args['body'] = json_encode($body);
-        }
-    
-        // Log request if debug mode is enabled
-        if ($this->settings->is_debug_mode()) {
-            error_log('FruugoSync API Request URL: ' . $this->api_base_url . $endpoint);
-            error_log('FruugoSync API Request Args: ' . print_r($args, true));
-        }
-    
-        // Make the request
-        $response = wp_remote_request($this->api_base_url . $endpoint, $args);
-    
-        // Handle response
-        if (is_wp_error($response)) {
-            $error_message = $response->get_error_message();
-            error_log('FruugoSync API Error: ' . $error_message);
+    }
+
+    /**
+     * Test API connection
+     */
+    public function test_connection() {
+        if (empty($this->credentials['username']) || empty($this->credentials['password'])) {
             return array(
                 'success' => false,
-                'message' => $error_message
+                'message' => __('API credentials not configured', 'fruugosync')
             );
         }
-    
+
+        // Test v3 API
+        $test_result = $this->make_request('orders', 'POST', array(
+            'dateFrom' => gmdate('Y-m-d\TH:i:s\Z', strtotime('-1 day'))
+        ), array(
+            'api_version' => 'v3',
+            'timeout' => 15
+        ));
+
+        return $test_result;
+    }
+
+    /**
+     * Get Fruugo categories and cache them
+     */
+    public function get_categories($force_refresh = false) {
+        $cached_categories = get_transient('fruugosync_categories');
+        if (!$force_refresh && $cached_categories !== false) {
+            return array(
+                'success' => true,
+                'data' => $cached_categories
+            );
+        }
+
+        // First try v3 API
+        $categories = $this->make_request('categories', 'GET', null, array(
+            'api_version' => 'v3',
+            'timeout' => 45
+        ));
+
+        if ($categories['success'] && !empty($categories['data'])) {
+            // Save categories to JSON file
+            $this->save_categories_to_file($categories['data']);
+            set_transient('fruugosync_categories', $categories['data'], DAY_IN_SECONDS);
+            return $categories;
+        }
+
+        // Fallback to legacy method
+        return $this->get_legacy_categories();
+    }
+
+    /**
+     * Save categories to JSON file
+     */
+    private function save_categories_to_file($categories) {
+        $folder_path = WP_CONTENT_DIR . '/uploads/fruugosync/categories/';
+        if (!file_exists($folder_path)) {
+            wp_mkdir_p($folder_path);
+        }
+
+        $file_path = $folder_path . 'category.json';
+        file_put_contents($file_path, wp_json_encode($categories));
+    }
+
+    /**
+     * Get legacy categories using XML format
+     */
+    private function get_legacy_categories() {
+        // Implementation of legacy category fetching
+        $response = $this->make_xml_request('categories', 'GET');
+        if ($response['success'] && !empty($response['data'])) {
+            $xml_array = XML2Array::createArray($response['data']);
+            return array(
+                'success' => true,
+                'data' => $this->format_legacy_categories($xml_array)
+            );
+        }
+        return $response;
+    }
+
+    /**
+     * Update inventory
+     */
+    public function update_inventory($product_data) {
+        // Try v3 API first
+        $v3_result = $this->make_request('products/inventory', 'POST', array(
+            'products' => array($product_data)
+        ), array('api_version' => 'v3'));
+
+        if ($v3_result['success']) {
+            return $v3_result;
+        }
+
+        // Fallback to legacy inventory API
+        return $this->update_legacy_inventory($product_data);
+    }
+
+    /**
+     * Update inventory using legacy API
+     */
+    private function update_legacy_inventory($product_data) {
+        $xml = $this->convert_inventory_to_xml($product_data);
+        return $this->make_xml_request('stockstatus-api', 'POST', $xml);
+    }
+
+    /**
+     * Make API request
+     */
+    private function make_request($endpoint, $method = 'GET', $body = null, $args = array()) {
+        $api_version = isset($args['api_version']) ? $args['api_version'] : 'v3';
+        $base_url = ($api_version === 'v3') ? $this->api_urls['v3_base'] : $this->api_urls['legacy'];
+        
+        if ($endpoint === 'orders' && $api_version === 'v3') {
+            $base_url = $this->api_urls['v3_order'];
+        }
+
+        $url = trailingslashit($base_url) . $endpoint;
+        
+        $request_args = array(
+            'method' => $method,
+            'timeout' => isset($args['timeout']) ? $args['timeout'] : 30,
+            'headers' => array(
+                'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'X-Correlation-ID' => 'fruugosync_' . uniqid()
+            ),
+            'sslverify' => false // Consider enabling in production
+        );
+
+        if ($body && in_array($method, array('POST', 'PUT'))) {
+            $request_args['body'] = wp_json_encode($body);
+        }
+
+        // Log request if debug mode
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('FruugoSync API Request: ' . $url);
+            error_log('Request Args: ' . print_r($request_args, true));
+        }
+
+        $response = wp_remote_request($url, $request_args);
+
+        if (is_wp_error($response)) {
+            return array(
+                'success' => false,
+                'message' => $response->get_error_message()
+            );
+        }
+
         $response_code = wp_remote_retrieve_response_code($response);
         $response_body = wp_remote_retrieve_body($response);
-    
-        // Log response if debug mode is enabled
-        if ($this->settings->is_debug_mode()) {
-            error_log('FruugoSync API Response Code: ' . $response_code);
-            error_log('FruugoSync API Response Body: ' . $response_body);
+
+        if ($response_code === 429) {
+            return array(
+                'success' => false,
+                'message' => 'Rate limit exceeded',
+                'retry_after' => wp_remote_retrieve_header($response, 'Retry-After')
+            );
         }
-    
-        // Handle different response codes
+
         if ($response_code >= 200 && $response_code < 300) {
             return array(
                 'success' => true,
                 'data' => json_decode($response_body, true)
             );
         }
-    
+
         return array(
             'success' => false,
-            'message' => sprintf(
-                __('API request failed with code %d: %s', 'fruugosync'),
-                $response_code,
-                wp_remote_retrieve_response_message($response)
-            )
+            'message' => "HTTP Error $response_code: " . wp_remote_retrieve_response_message($response)
         );
     }
-    /**
-     * Test API connection
-     */
-    public function test_connection() {
-        $result = $this->make_request('orders', 'POST', array(
-            'dateFrom' => date('Y-m-d\TH:i:s\Z', strtotime('-1 day'))
-        ));
-
-        if ($result['success']) {
-            $this->settings->update_api_status('connected');
-        } else {
-            $this->settings->update_api_status('disconnected', $result['message']);
-        }
-
-        return $result;
-    }
 
     /**
-     * Get Fruugo categories
+     * Make XML API request
      */
-    public function get_categories() {
-        // First check transient
-        $categories = get_transient('fruugosync_categories');
-        if ($categories !== false) {
+    private function make_xml_request($endpoint, $method = 'GET', $body = null) {
+        $url = $this->api_urls['legacy'] . $endpoint;
+        
+        $args = array(
+            'method' => $method,
+            'timeout' => 90,
+            'headers' => array(
+                'Content-Type' => 'application/xml',
+                'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password'])
+            ),
+            'body' => $body,
+            'sslverify' => false
+        );
+
+        $response = wp_remote_request($url, $args);
+
+        if (is_wp_error($response)) {
             return array(
-                'success' => true,
-                'data' => $categories
+                'success' => false,
+                'message' => $response->get_error_message()
             );
         }
 
-        $result = $this->make_request('categories');
-        
-        if ($result['success'] && !empty($result['data'])) {
-            set_transient('fruugosync_categories', $result['data'], DAY_IN_SECONDS);
-        }
-
-        return $result;
+        return array(
+            'success' => true,
+            'data' => wp_remote_retrieve_body($response)
+        );
     }
 
     /**
-     * Push product to Fruugo
+     * Convert inventory data to XML
      */
-    public function push_product($product_data) {
-        return $this->make_request('products', 'POST', array(
-            'products' => array($product_data)
-        ));
+    private function convert_inventory_to_xml($data) {
+        // Implement XML conversion logic here
+        // Use the Array2XML class if needed
+        return '';
     }
 
     /**
-     * Update product on Fruugo
+     * Format legacy categories into new format
      */
-    public function update_product($product_data) {
-        return $this->make_request('products/partial', 'POST', array(
-            'products' => array($product_data)
-        ));
-    }
-
-    /**
-     * Get product status from Fruugo
-     */
-    public function get_product_status($product_id) {
-        return $this->make_request('products/status', 'POST', array(
-            'skus' => array(
-                array('productId' => $product_id)
-            )
-        ));
-    }
-
-    /**
-     * Clear API cache
-     */
-    public function clear_cache() {
-        delete_transient('fruugosync_categories');
-        return true;
+    private function format_legacy_categories($xml_array) {
+        // Implement category format conversion
+        return array();
     }
 }
