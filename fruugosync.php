@@ -26,144 +26,183 @@ define('FRUUGOSYNC_ASSETS_URL', FRUUGOSYNC_URL . 'assets/');
 define('FRUUGOSYNC_INCLUDES_PATH', FRUUGOSYNC_PATH . 'includes/');
 define('FRUUGOSYNC_TEMPLATES_PATH', FRUUGOSYNC_PATH . 'templates/');
 
-/**
- * Check if WooCommerce is active
- */
-function is_woocommerce_active() {
-    $active_plugins = (array) get_option('active_plugins', array());
-    if (is_multisite()) {
-        $active_plugins = array_merge($active_plugins, get_site_option('active_sitewide_plugins', array()));
-    }
-    return in_array('woocommerce/woocommerce.php', $active_plugins) || array_key_exists('woocommerce/woocommerce.php', $active_plugins);
-}
+final class FruugoSync_Loader {
+    private static $instance = null;
+    private $settings;
+    private $api;
+    private $admin;
+    private $product;
 
-/**
- * Display WooCommerce missing notice
- */
-function fruugosync_wc_missing_notice() {
-    ?>
-    <div class="notice notice-error">
-        <p><?php _e('FruugoSync requires WooCommerce to be installed and activated.', 'fruugosync'); ?></p>
-    </div>
-    <?php
-}
-
-/**
- * Initialize the plugin
- */
-function fruugosync_init() {
-    load_plugin_textdomain('fruugosync', false, dirname(plugin_basename(__FILE__)) . '/languages');
-
-    if (!is_woocommerce_active()) {
-        add_action('admin_notices', 'fruugosync_wc_missing_notice');
-        return;
+    public static function instance() {
+        if (is_null(self::$instance)) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
 
-    // Load required files
-    require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync.php';
-    require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-admin.php';
-    require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-api.php';
-    require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-product.php';
-    require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-settings.php';
-
-    // Initialize plugin
-    FruugoSync::instance();
-}
-
-/**
- * Plugin activation
- */
-function fruugosync_activate() {
-    // Create necessary directories
-    $upload_dir = wp_upload_dir();
-    $fruugo_dir = $upload_dir['basedir'] . '/cedcommerce_fruugouploads';
-    
-    if (!file_exists($fruugo_dir)) {
-        wp_mkdir_p($fruugo_dir);
+    private function __construct() {
+        $this->check_requirements();
+        $this->includes();
+        $this->init_hooks();
+        $this->init_components();
     }
 
-    // Create required plugin directories
-    $directories = array(
-        FRUUGOSYNC_PATH . 'assets/css',
-        FRUUGOSYNC_PATH . 'assets/js',
-        FRUUGOSYNC_PATH . 'includes',
-        FRUUGOSYNC_PATH . 'templates/admin'
-    );
+    private function check_requirements() {
+        if (version_compare(PHP_VERSION, '7.4', '<')) {
+            add_action('admin_notices', array($this, 'php_version_notice'));
+            return;
+        }
 
-    foreach ($directories as $directory) {
-        if (!file_exists($directory)) {
-            wp_mkdir_p($directory);
+        if (!class_exists('WooCommerce')) {
+            add_action('admin_notices', array($this, 'woocommerce_notice'));
+            return;
         }
     }
 
-    // Set default options
-    $default_options = array(
-        'fruugosync_username' => '',
-        'fruugosync_password' => '',
-        'fruugosync_api_status' => array(
-            'status' => 'unknown',
-            'last_check' => 0,
-            'error' => ''
-        ),
-        'fruugosync_category_mappings' => array(),
-        'fruugosync_debug_mode' => false
-    );
+    private function includes() {
+        require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-settings.php';
+        require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-api.php';
+        require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-admin.php';
+        require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync-product.php';
+    }
 
-    foreach ($default_options as $option_name => $default_value) {
-        if (false === get_option($option_name)) {
-            add_option($option_name, $default_value);
+    private function init_components() {
+        $this->settings = new FruugoSync_Settings();
+        $this->api = new FruugoSync_API();
+        $this->admin = new FruugoSync_Admin();
+        $this->product = new FruugoSync_Product();
+    }
+
+    private function init_hooks() {
+        // Plugin lifecycle hooks
+        register_activation_hook(FRUUGOSYNC_FILE, array($this, 'activate'));
+        register_deactivation_hook(FRUUGOSYNC_FILE, array($this, 'deactivate'));
+        
+        // Admin hooks
+        add_action('admin_enqueue_scripts', array($this, 'admin_enqueue_scripts'));
+        add_filter('plugin_action_links_' . plugin_basename(FRUUGOSYNC_FILE), array($this, 'add_plugin_links'));
+    }
+
+    public function admin_enqueue_scripts($hook) {
+        // Only load on our plugin pages
+        if (strpos($hook, 'fruugosync') === false) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'fruugosync-admin',
+            FRUUGOSYNC_ASSETS_URL . 'css/admin.css',
+            array(),
+            FRUUGOSYNC_VERSION
+        );
+
+        wp_enqueue_script(
+            'fruugosync-admin',
+            FRUUGOSYNC_ASSETS_URL . 'js/admin.js',
+            array('jquery'),
+            FRUUGOSYNC_VERSION,
+            true
+        );
+
+        wp_localize_script('fruugosync-admin', 'fruugosync_ajax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('fruugosync-ajax-nonce')
+        ));
+    }
+
+    public function activate() {
+        $this->create_directories();
+        $this->set_default_options();
+        flush_rewrite_rules();
+    }
+
+    public function deactivate() {
+        flush_rewrite_rules();
+    }
+
+    private function create_directories() {
+        // Create upload directory
+        $upload_dir = wp_upload_dir();
+        $fruugo_dir = $upload_dir['basedir'] . '/cedcommerce_fruugouploads';
+        
+        if (!file_exists($fruugo_dir)) {
+            wp_mkdir_p($fruugo_dir);
+        }
+
+        // Create plugin directories
+        $directories = array(
+            FRUUGOSYNC_PATH . 'assets/css',
+            FRUUGOSYNC_PATH . 'assets/js',
+            FRUUGOSYNC_PATH . 'templates/admin'
+        );
+
+        foreach ($directories as $directory) {
+            if (!file_exists($directory)) {
+                wp_mkdir_p($directory);
+            }
         }
     }
 
-    // Clear any existing transients
-    delete_transient('fruugosync_categories');
-}
+    private function set_default_options() {
+        $default_options = array(
+            'fruugosync_username' => '',
+            'fruugosync_password' => '',
+            'fruugosync_api_status' => array(
+                'status' => 'unknown',
+                'last_check' => 0,
+                'error' => ''
+            ),
+            'fruugosync_category_mappings' => array(),
+            'fruugosync_debug_mode' => false
+        );
 
-/**
- * Plugin deactivation
- */
-function fruugosync_deactivate() {
-    // Clear scheduled hooks if any
-    wp_clear_scheduled_hook('fruugosync_sync_products');
-    wp_clear_scheduled_hook('fruugosync_sync_orders');
-
-    // Clear transients
-    delete_transient('fruugosync_categories');
-}
-
-/**
- * Plugin uninstall
- */
-function fruugosync_uninstall() {
-    // Remove all plugin options
-    $options = array(
-        'fruugosync_username',
-        'fruugosync_password',
-        'fruugosync_api_status',
-        'fruugosync_category_mappings',
-        'fruugosync_debug_mode'
-    );
-
-    foreach ($options as $option) {
-        delete_option($option);
+        foreach ($default_options as $option_name => $default_value) {
+            if (false === get_option($option_name)) {
+                add_option($option_name, $default_value);
+            }
+        }
     }
 
-    // Clear transients
-    delete_transient('fruugosync_categories');
+    public function add_plugin_links($links) {
+        $settings_link = '<a href="admin.php?page=fruugosync-settings">' . 
+                        __('Settings', 'fruugosync') . '</a>';
+        array_unshift($links, $settings_link);
+        return $links;
+    }
+
+    public function php_version_notice() {
+        ?>
+        <div class="notice notice-error">
+            <p><?php 
+                printf(
+                    __('FruugoSync requires PHP version 7.4 or higher. You are running version %s.', 'fruugosync'), 
+                    PHP_VERSION
+                ); 
+            ?></p>
+        </div>
+        <?php
+    }
+
+    public function woocommerce_notice() {
+        ?>
+        <div class="notice notice-error">
+            <p><?php _e('FruugoSync requires WooCommerce to be installed and activated.', 'fruugosync'); ?></p>
+        </div>
+        <?php
+    }
+
+    public function __clone() {
+        _doing_it_wrong(__FUNCTION__, __('Cloning is forbidden.', 'fruugosync'), FRUUGOSYNC_VERSION);
+    }
+
+    public function __wakeup() {
+        _doing_it_wrong(__FUNCTION__, __('Unserializing instances of this class is forbidden.', 'fruugosync'), FRUUGOSYNC_VERSION);
+    }
 }
 
-// Register hooks
-register_activation_hook(__FILE__, 'fruugosync_activate');
-register_deactivation_hook(__FILE__, 'fruugosync_deactivate');
-register_uninstall_hook(__FILE__, 'fruugosync_uninstall');
-
-// Initialize plugin after WooCommerce
-add_action('plugins_loaded', 'fruugosync_init', 20);
-
-// Add settings link on plugin page
-add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'fruugosync_settings_link');
-function fruugosync_settings_link($links) {
-    $settings_link = '<a href="admin.php?page=fruugosync-settings">' . __('Settings', 'fruugosync') . '</a>';
-    array_unshift($links, $settings_link);
-    return $links;
+function FruugoSync() {
+    return FruugoSync_Loader::instance();
 }
+
+// Initialize the plugin
+add_action('plugins_loaded', 'FruugoSync', 20);
