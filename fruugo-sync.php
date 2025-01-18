@@ -107,50 +107,6 @@ class FruugoSync {
         <?php
     }
 
-    public function display_category_mapping() {
-        $fruugo_categories = $this->get_fruugo_categories();
-        $woo_categories = get_terms([
-            'taxonomy' => 'product_cat',
-            'hide_empty' => false,
-        ]);
-        $saved_mappings = get_option('fruugosync_category_mappings', array());
-        
-        ?>
-        <div class="wrap">
-            <h1>Category Mapping</h1>
-            <form method="post" action="options.php">
-                <?php settings_fields('fruugosync_settings'); ?>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th>WooCommerce Category</th>
-                            <th>Fruugo Category</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($woo_categories as $woo_cat): ?>
-                        <tr>
-                            <td><?php echo esc_html($woo_cat->name); ?></td>
-                            <td>
-                                <select name="category_mapping[<?php echo esc_attr($woo_cat->term_id); ?>]">
-                                    <option value="">Select Fruugo Category</option>
-                                    <?php foreach ($fruugo_categories as $fruugo_cat): ?>
-                                        <option value="<?php echo esc_attr($fruugo_cat['id']); ?>"
-                                            <?php selected(isset($saved_mappings[$woo_cat->term_id]) ? $saved_mappings[$woo_cat->term_id] : '', $fruugo_cat['id']); ?>>
-                                            <?php echo esc_html($fruugo_cat['name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <?php submit_button('Save Category Mappings'); ?>
-            </form>
-        </div>
-        <?php
-    }
 
 
 
