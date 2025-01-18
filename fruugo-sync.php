@@ -214,6 +214,228 @@ class FruugoSync {
 
         return '';
     }
+
+    private function make_api_request($endpoint, $method = 'GET', $body = null) {
+        $username = get_option('fruugosync_username');
+        $password = get_option('fruugosync_password');
+        
+        if (empty($username) || empty($password)) {
+            $this->add_admin_notice('Fruugo API credentials are not configured.', 'error');
+            return false;
+        }
+        
+        $args = array(
+            'method' => $method,
+            'headers' => array(
+                'Authorization' => 'Basic ' . base64_encode($username . ':' . $password),
+                'Content-Type' => 'application/json',
+                'X-Correlation-ID' => uniqid('fruugosync_'),
+            ),
+            'timeout' => 30
+        );
+    
+        if ($body) {
+            $args['body'] = json_encode($body);
+        }
+    
+        $response = wp_remote_request($this->api_base_url . $endpoint, $args);
+    
+        if (is_wp_error($response)) {
+            $this->add_admin_notice('API Error: ' . $response->get_error_message(), 'error');
+            error_log('Fruugo API Error: ' . $response->get_error_message());
+            return false;
+        }
+    
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $error_message = wp_remote_retrieve_response_message($response);
+            $this->add_admin_notice("API Error (HTTP $response_code): $error_message", 'error');
+            error_log("Fruugo API Error: HTTP $response_code - $error_message");
+            return false;
+        }
+    
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->add_admin_notice('Failed to parse API response', 'error');
+            error_log('Fruugo API Error: Invalid JSON response');
+            return false;
+        }
+    
+        return $data;
+    }
+    
+    private function add_admin_notice($message, $type = 'success') {
+        add_settings_error(
+            'fruugosync_messages',
+            'fruugosync_message',
+            $message,
+            $type
+        );
+    }
+    
+    private function get_fruugo_categories($force_refresh = false) {
+        if ($force_refresh) {
+            delete_transient('fruugosync_categories');
+        }
+    
+        // Check cache first
+        $cached_categories = get_transient('fruugosync_categories');
+        if ($cached_categories && !$force_refresh) {
+            return $cached_categories;
+        }
+    
+        // Fetch from API
+        $categories = $this->make_api_request('categories');
+        
+        if ($categories) {
+            // Process categories into hierarchical structure
+            $processed_categories = $this->process_categories_hierarchy($categories);
+            // Cache for 24 hours
+            set_transient('fruugosync_categories', $processed_categories, DAY_IN_SECONDS);
+            return $processed_categories;
+        }
+        
+        return array();
+    }
+    
+    private function process_categories_hierarchy($categories) {
+        // Process categories into parent-child relationship
+        $categoriesById = array();
+        $rootCategories = array();
+    
+        // First pass: create category objects
+        foreach ($categories as $category) {
+            $categoriesById[$category['id']] = array(
+                'id' => $category['id'],
+                'name' => $category['name'],
+                'parent_id' => isset($category['parent_id']) ? $category['parent_id'] : null,
+                'children' => array()
+            );
+        }
+    
+        // Second pass: build hierarchy
+        foreach ($categoriesById as $id => $category) {
+            if ($category['parent_id'] && isset($categoriesById[$category['parent_id']])) {
+                $categoriesById[$category['parent_id']]['children'][] = &$categoriesById[$id];
+            } else {
+                $rootCategories[] = &$categoriesById[$id];
+            }
+        }
+    
+        return $rootCategories;
+    }
+    
+    private function render_category_options($categories, $selected_value, $level = 0) {
+        $output = '';
+        foreach ($categories as $category) {
+            $padding = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $level);
+            $selected = selected($selected_value, $category['id'], false);
+            $output .= sprintf(
+                '<option value="%s" %s>%s%s</option>',
+                esc_attr($category['id']),
+                $selected,
+                $padding,
+                esc_html($category['name'])
+            );
+            
+            if (!empty($category['children'])) {
+                $output .= $this->render_category_options($category['children'], $selected_value, $level + 1);
+            }
+        }
+        return $output;
+    }
+    
+    public function display_category_mapping() {
+        // Handle refresh categories action
+        if (isset($_POST['refresh_categories']) && check_admin_referer('fruugosync_category_mapping')) {
+            $categories = $this->get_fruugo_categories(true);
+            if ($categories) {
+                $this->add_admin_notice('Fruugo categories refreshed successfully!');
+            }
+        }
+    
+        // Handle save mappings action
+        if (isset($_POST['save_category_mappings']) && check_admin_referer('fruugosync_category_mapping')) {
+            $mappings = isset($_POST['category_mapping']) ? (array) $_POST['category_mapping'] : array();
+            update_option('fruugosync_category_mappings', $mappings);
+            $this->add_admin_notice('Category mappings saved successfully!');
+        }
+    
+        $fruugo_categories = $this->get_fruugo_categories();
+        $woo_categories = get_terms([
+            'taxonomy' => 'product_cat',
+            'hide_empty' => false,
+        ]);
+        $saved_mappings = get_option('fruugosync_category_mappings', array());
+        
+        // Display any pending admin notices
+        settings_errors('fruugosync_messages');
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+            
+            <!-- Refresh Categories Form -->
+            <form method="post" action="" style="margin-bottom: 20px;">
+                <?php wp_nonce_field('fruugosync_category_mapping'); ?>
+                <input type="submit" name="refresh_categories" class="button" 
+                       value="<?php esc_attr_e('Refresh Fruugo Categories', 'fruugosync'); ?>">
+            </form>
+    
+            <!-- Category Mapping Form -->
+            <form method="post" action="">
+                <?php wp_nonce_field('fruugosync_category_mapping'); ?>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th>WooCommerce Category</th>
+                            <th>Fruugo Category</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        if (empty($fruugo_categories)) {
+                            ?>
+                            <tr>
+                                <td colspan="2">
+                                    <?php _e('No Fruugo categories available. Please check your API credentials and try refreshing.', 'fruugosync'); ?>
+                                </td>
+                            </tr>
+                            <?php
+                        } else {
+                            foreach ($woo_categories as $woo_cat): 
+                            ?>
+                            <tr>
+                                <td><?php echo esc_html($woo_cat->name); ?></td>
+                                <td>
+                                    <select name="category_mapping[<?php echo esc_attr($woo_cat->term_id); ?>]">
+                                        <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
+                                        <?php 
+                                        echo $this->render_category_options(
+                                            $fruugo_categories, 
+                                            isset($saved_mappings[$woo_cat->term_id]) ? $saved_mappings[$woo_cat->term_id] : ''
+                                        );
+                                        ?>
+                                    </select>
+                                </td>
+                            </tr>
+                            <?php 
+                            endforeach;
+                        }
+                        ?>
+                    </tbody>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="save_category_mappings" class="button button-primary" 
+                           value="<?php esc_attr_e('Save Category Mappings', 'fruugosync'); ?>">
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+
 }
 
 // Initialize the plugin
