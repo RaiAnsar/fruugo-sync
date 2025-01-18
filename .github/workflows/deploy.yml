@@ -1,0 +1,31 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Remote Server
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up SSH Agent
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # Step 3: Deploy code to the server
+      - name: Deploy via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -i /github/home/.ssh/id_rsa root@89.116.111.47 << 'EOF'
+          cd /home/mediatronixs/htdocs/mediatronixs.com/wp-content/plugins/fruugo-sync
+          git reset --hard
+          git pull origin main
+          EOF
