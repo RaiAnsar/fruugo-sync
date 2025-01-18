@@ -64,10 +64,75 @@ class FruugoSync {
         ));
     }
 
+    public function test_api_connection() {
+        $username = get_option('fruugosync_username');
+        $password = get_option('fruugosync_password');
+        
+        if (empty($username) || empty($password)) {
+            return [
+                'success' => false,
+                'message' => 'API credentials not configured'
+            ];
+        }
+    
+        // Make a test API call
+        $args = array(
+            'method' => 'GET',
+            'headers' => array(
+                'Authorization' => 'Basic ' . base64_encode($username . ':' . $password),
+                'Content-Type' => 'application/json',
+                'X-Correlation-ID' => uniqid('fruugosync_test_'),
+            ),
+            'timeout' => 15 // Reduced timeout for connection test
+        );
+    
+        $response = wp_remote_get($this->api_base_url . 'test-connection', $args);
+    
+        if (is_wp_error($response)) {
+            return [
+                'success' => false,
+                'message' => 'Connection failed: ' . $response->get_error_message()
+            ];
+        }
+    
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code === 200 || $response_code === 202) {
+            update_option('fruugosync_api_status', [
+                'status' => 'connected',
+                'last_check' => time()
+            ]);
+            return [
+                'success' => true,
+                'message' => 'Successfully connected to Fruugo API'
+            ];
+        }
+    
+        return [
+            'success' => false,
+            'message' => 'API Error: Received response code ' . $response_code
+        ];
+    }
+
     public function display_settings_page() {
+        // Handle test connection
+        if (isset($_POST['test_connection']) && check_admin_referer('fruugosync_settings')) {
+            $test_result = $this->test_api_connection();
+            if ($test_result['success']) {
+                add_settings_error('fruugosync_messages', 'connection_success', $test_result['message'], 'success');
+            } else {
+                add_settings_error('fruugosync_messages', 'connection_error', $test_result['message'], 'error');
+            }
+        }
+    
+        // Get current connection status
+        $api_status = get_option('fruugosync_api_status', ['status' => 'unknown']);
+        $is_connected = $api_status['status'] === 'connected';
+        
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+            <?php settings_errors('fruugosync_messages'); ?>
+    
             <form method="post" action="options.php">
                 <?php
                 settings_fields('fruugosync_settings');
@@ -93,17 +158,74 @@ class FruugoSync {
                         </td>
                     </tr>
                 </table>
-                <?php submit_button(); ?>
+                <?php submit_button('Save Changes'); ?>
             </form>
-
+    
+            <!-- API Connection Status -->
             <div class="card">
-                <h2>Product Export Status</h2>
+                <h2 class="title">API Connection Status 
+                    <span class="connection-status <?php echo $is_connected ? 'connected' : 'disconnected'; ?>">
+                        <span class="dashicons <?php echo $is_connected ? 'dashicons-yes-alt' : 'dashicons-warning'; ?>"></span>
+                        <?php echo $is_connected ? 'Connected' : 'Not Connected'; ?>
+                    </span>
+                </h2>
+                <form method="post" action="">
+                    <?php wp_nonce_field('fruugosync_settings'); ?>
+                    <input type="submit" name="test_connection" class="button button-secondary" 
+                           value="Test Connection">
+                </form>
+            </div>
+    
+            <!-- Product Export Status -->
+            <div class="card">
+                <h2 class="title">Product Export Status</h2>
                 <p>CSV Export Directory: <?php echo esc_html($this->upload_dir); ?></p>
                 <button type="button" class="button button-primary" id="generate_product_csv">
                     Generate Product CSV
                 </button>
             </div>
         </div>
+    
+        <style>
+            .connection-status {
+                display: inline-flex;
+                align-items: center;
+                padding: 5px 10px;
+                border-radius: 4px;
+                margin-left: 10px;
+                font-size: 14px;
+            }
+            .connection-status.connected {
+                background-color: #d4edda;
+                color: #155724;
+            }
+            .connection-status.disconnected {
+                background-color: #f8d7da;
+                color: #721c24;
+            }
+            .connection-status .dashicons {
+                margin-right: 5px;
+            }
+            .card {
+                background: #fff;
+                border: 1px solid #ccd0d4;
+                padding: 20px;
+                margin-top: 20px;
+                box-shadow: 0 1px 1px rgba(0,0,0,.04);
+            }
+            .card .title {
+                margin-top: 0;
+            }
+        </style>
+    
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Add loading state to test connection button
+            $('input[name="test_connection"]').click(function() {
+                $(this).val('Testing...').prop('disabled', true);
+            });
+        });
+        </script>
         <?php
     }
 
