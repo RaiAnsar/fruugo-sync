@@ -12,519 +12,153 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class FruugoSync {
-    private $api_base_url = 'https://api.fruugo.com/v3/';
-    private $upload_dir;
-    
-    public function __construct() {
-        add_action('admin_menu', array($this, 'add_admin_menu'));
-        add_action('admin_init', array($this, 'register_settings'));
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
-        
-        // Set upload directory
-        $wp_upload_dir = wp_upload_dir();
-        $this->upload_dir = $wp_upload_dir['basedir'] . '/cedcommerce_fruugouploads/';
-    }
+// Define plugin constants
+define('FRUUGOSYNC_VERSION', '1.0.0');
+define('FRUUGOSYNC_FILE', __FILE__);
+define('FRUUGOSYNC_PATH', plugin_dir_path(__FILE__));
+define('FRUUGOSYNC_URL', plugin_dir_url(__FILE__));
+define('FRUUGOSYNC_ASSETS_URL', FRUUGOSYNC_URL . 'assets/');
+define('FRUUGOSYNC_INCLUDES_PATH', FRUUGOSYNC_PATH . 'includes/');
 
-    public function add_admin_menu() {
-        add_menu_page(
-            'FruugoSync Settings',
-            'FruugoSync',
-            'manage_options',
-            'fruugosync-settings',
-            array($this, 'display_settings_page'),
-            'dashicons-synchronization'
-        );
-
-        add_submenu_page(
-            'fruugosync-settings',
-            'Category Mapping',
-            'Category Mapping',
-            'manage_options',
-            'fruugosync-categories',
-            array($this, 'display_category_mapping')
-        );
-    }
-
-    public function register_settings() {
-        register_setting('fruugosync_settings', 'fruugosync_username');
-        register_setting('fruugosync_settings', 'fruugosync_password');
-        register_setting('fruugosync_settings', 'fruugosync_category_mappings');
-    }
-
-    public function enqueue_admin_scripts($hook) {
-        if ('fruugosync_page_fruugosync-categories' !== $hook) {
-            return;
-        }
-        
-        wp_enqueue_script('fruugosync-admin', plugins_url('js/admin.js', __FILE__), array('jquery'), '1.0.0', true);
-        wp_localize_script('fruugosync-admin', 'fruugosync_ajax', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('fruugosync-ajax-nonce')
-        ));
-    }
-
-    public function test_api_connection() {
-        $username = get_option('fruugosync_username');
-        $password = get_option('fruugosync_password');
-        
-        if (empty($username) || empty($password)) {
-            return [
-                'success' => false,
-                'message' => 'API credentials not configured'
-            ];
-        }
-    
-        // Make a test API call
-        $args = array(
-            'method' => 'GET',
-            'headers' => array(
-                'Authorization' => 'Basic ' . base64_encode($username . ':' . $password),
-                'Content-Type' => 'application/json',
-                'X-Correlation-ID' => uniqid('fruugosync_test_'),
-            ),
-            'timeout' => 15 // Reduced timeout for connection test
-        );
-    
-        $response = wp_remote_get($this->api_base_url . 'test-connection', $args);
-    
-        if (is_wp_error($response)) {
-            return [
-                'success' => false,
-                'message' => 'Connection failed: ' . $response->get_error_message()
-            ];
-        }
-    
-        $response_code = wp_remote_retrieve_response_code($response);
-        if ($response_code === 200 || $response_code === 202) {
-            update_option('fruugosync_api_status', [
-                'status' => 'connected',
-                'last_check' => time()
-            ]);
-            return [
-                'success' => true,
-                'message' => 'Successfully connected to Fruugo API'
-            ];
-        }
-    
-        return [
-            'success' => false,
-            'message' => 'API Error: Received response code ' . $response_code
-        ];
-    }
-
-    public function display_settings_page() {
-        // Handle test connection
-        if (isset($_POST['test_connection']) && check_admin_referer('fruugosync_settings')) {
-            $test_result = $this->test_api_connection();
-            if ($test_result['success']) {
-                add_settings_error('fruugosync_messages', 'connection_success', $test_result['message'], 'success');
-            } else {
-                add_settings_error('fruugosync_messages', 'connection_error', $test_result['message'], 'error');
-            }
-        }
-    
-        // Get current connection status
-        $api_status = get_option('fruugosync_api_status', ['status' => 'unknown']);
-        $is_connected = $api_status['status'] === 'connected';
-        
+// Ensure our autoload file exists
+if (file_exists(FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync.php')) {
+    require_once FRUUGOSYNC_INCLUDES_PATH . 'class-fruugosync.php';
+} else {
+    add_action('admin_notices', function() {
         ?>
-        <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            <?php settings_errors('fruugosync_messages'); ?>
-    
-            <form method="post" action="options.php">
-                <?php
-                settings_fields('fruugosync_settings');
-                do_settings_sections('fruugosync_settings');
-                ?>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="fruugosync_username">Fruugo Username</label>
-                        </th>
-                        <td>
-                            <input type="text" id="fruugosync_username" name="fruugosync_username" 
-                                   value="<?php echo esc_attr(get_option('fruugosync_username')); ?>" class="regular-text">
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="fruugosync_password">Fruugo Password</label>
-                        </th>
-                        <td>
-                            <input type="password" id="fruugosync_password" name="fruugosync_password" 
-                                   value="<?php echo esc_attr(get_option('fruugosync_password')); ?>" class="regular-text">
-                        </td>
-                    </tr>
-                </table>
-                <?php submit_button('Save Changes'); ?>
-            </form>
-    
-            <!-- API Connection Status -->
-            <div class="card">
-                <h2 class="title">API Connection Status 
-                    <span class="connection-status <?php echo $is_connected ? 'connected' : 'disconnected'; ?>">
-                        <span class="dashicons <?php echo $is_connected ? 'dashicons-yes-alt' : 'dashicons-warning'; ?>"></span>
-                        <?php echo $is_connected ? 'Connected' : 'Not Connected'; ?>
-                    </span>
-                </h2>
-                <form method="post" action="">
-                    <?php wp_nonce_field('fruugosync_settings'); ?>
-                    <input type="submit" name="test_connection" class="button button-secondary" 
-                           value="Test Connection">
-                </form>
-            </div>
-    
-            <!-- Product Export Status -->
-            <div class="card">
-                <h2 class="title">Product Export Status</h2>
-                <p>CSV Export Directory: <?php echo esc_html($this->upload_dir); ?></p>
-                <button type="button" class="button button-primary" id="generate_product_csv">
-                    Generate Product CSV
-                </button>
-            </div>
-        </div>
-    
-        <style>
-            .connection-status {
-                display: inline-flex;
-                align-items: center;
-                padding: 5px 10px;
-                border-radius: 4px;
-                margin-left: 10px;
-                font-size: 14px;
-            }
-            .connection-status.connected {
-                background-color: #d4edda;
-                color: #155724;
-            }
-            .connection-status.disconnected {
-                background-color: #f8d7da;
-                color: #721c24;
-            }
-            .connection-status .dashicons {
-                margin-right: 5px;
-            }
-            .card {
-                background: #fff;
-                border: 1px solid #ccd0d4;
-                padding: 20px;
-                margin-top: 20px;
-                box-shadow: 0 1px 1px rgba(0,0,0,.04);
-            }
-            .card .title {
-                margin-top: 0;
-            }
-        </style>
-    
-        <script type="text/javascript">
-        jQuery(document).ready(function($) {
-            // Add loading state to test connection button
-            $('input[name="test_connection"]').click(function() {
-                $(this).val('Testing...').prop('disabled', true);
-            });
-        });
-        </script>
-        <?php
-    }
-
-
-
-
-    public function generate_product_csv() {
-        $products = wc_get_products(array(
-            'limit' => -1,
-            'status' => 'publish'
-        ));
-
-        $csv_file = $this->upload_dir . 'merchant_products.csv';
-        $fp = fopen($csv_file, 'w');
-
-        // Write CSV headers
-        fputcsv($fp, array(
-            'ProductId',
-            'SkuId',
-            'Title',
-            'Description',
-            'Category',
-            'Price',
-            'StockQuantity'
-        ));
-
-        foreach ($products as $product) {
-            fputcsv($fp, array(
-                $product->get_id(),
-                $product->get_sku(),
-                $product->get_name(),
-                strip_tags($product->get_description()),
-                $this->get_mapped_category($product),
-                $product->get_price(),
-                $product->get_stock_quantity()
-            ));
-        }
-
-        fclose($fp);
-        return $csv_file;
-    }
-
-    private function get_mapped_category($product) {
-        $mappings = get_option('fruugosync_category_mappings', array());
-        $woo_cats = get_the_terms($product->get_id(), 'product_cat');
-        
-        if (!$woo_cats || is_wp_error($woo_cats)) {
-            return '';
-        }
-
-        foreach ($woo_cats as $cat) {
-            if (isset($mappings[$cat->term_id])) {
-                return $mappings[$cat->term_id];
-            }
-        }
-
-        return '';
-    }
-
-    private function make_api_request($endpoint, $method = 'GET', $body = null) {
-        $username = get_option('fruugosync_username');
-        $password = get_option('fruugosync_password');
-        
-        if (empty($username) || empty($password)) {
-            $this->add_admin_notice('Fruugo API credentials are not configured.', 'error');
-            return false;
-        }
-        
-        $args = array(
-            'method' => $method,
-            'headers' => array(
-                'Authorization' => 'Basic ' . base64_encode($username . ':' . $password),
-                'Content-Type' => 'application/json',
-                'X-Correlation-ID' => uniqid('fruugosync_'),
-            ),
-            'timeout' => 30
-        );
-    
-        if ($body) {
-            $args['body'] = json_encode($body);
-        }
-    
-        $response = wp_remote_request($this->api_base_url . $endpoint, $args);
-    
-        if (is_wp_error($response)) {
-            $this->add_admin_notice('API Error: ' . $response->get_error_message(), 'error');
-            error_log('Fruugo API Error: ' . $response->get_error_message());
-            return false;
-        }
-    
-        $response_code = wp_remote_retrieve_response_code($response);
-        if ($response_code !== 200) {
-            $error_message = wp_remote_retrieve_response_message($response);
-            $this->add_admin_notice("API Error (HTTP $response_code): $error_message", 'error');
-            error_log("Fruugo API Error: HTTP $response_code - $error_message");
-            return false;
-        }
-    
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->add_admin_notice('Failed to parse API response', 'error');
-            error_log('Fruugo API Error: Invalid JSON response');
-            return false;
-        }
-    
-        return $data;
-    }
-    
-    private function add_admin_notice($message, $type = 'success') {
-        add_settings_error(
-            'fruugosync_messages',
-            'fruugosync_message',
-            $message,
-            $type
-        );
-    }
-    
-    private function get_fruugo_categories($force_refresh = false) {
-        if ($force_refresh) {
-            delete_transient('fruugosync_categories');
-        }
-    
-        // Check cache first
-        $cached_categories = get_transient('fruugosync_categories');
-        if ($cached_categories && !$force_refresh) {
-            return $cached_categories;
-        }
-    
-        // Fetch from API
-        $categories = $this->make_api_request('categories');
-        
-        if ($categories) {
-            // Process categories into hierarchical structure
-            $processed_categories = $this->process_categories_hierarchy($categories);
-            // Cache for 24 hours
-            set_transient('fruugosync_categories', $processed_categories, DAY_IN_SECONDS);
-            return $processed_categories;
-        }
-        
-        return array();
-    }
-    
-    private function process_categories_hierarchy($categories) {
-        // Process categories into parent-child relationship
-        $categoriesById = array();
-        $rootCategories = array();
-    
-        // First pass: create category objects
-        foreach ($categories as $category) {
-            $categoriesById[$category['id']] = array(
-                'id' => $category['id'],
-                'name' => $category['name'],
-                'parent_id' => isset($category['parent_id']) ? $category['parent_id'] : null,
-                'children' => array()
-            );
-        }
-    
-        // Second pass: build hierarchy
-        foreach ($categoriesById as $id => $category) {
-            if ($category['parent_id'] && isset($categoriesById[$category['parent_id']])) {
-                $categoriesById[$category['parent_id']]['children'][] = &$categoriesById[$id];
-            } else {
-                $rootCategories[] = &$categoriesById[$id];
-            }
-        }
-    
-        return $rootCategories;
-    }
-    
-    private function render_category_options($categories, $selected_value, $level = 0) {
-        $output = '';
-        foreach ($categories as $category) {
-            $padding = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $level);
-            $selected = selected($selected_value, $category['id'], false);
-            $output .= sprintf(
-                '<option value="%s" %s>%s%s</option>',
-                esc_attr($category['id']),
-                $selected,
-                $padding,
-                esc_html($category['name'])
-            );
-            
-            if (!empty($category['children'])) {
-                $output .= $this->render_category_options($category['children'], $selected_value, $level + 1);
-            }
-        }
-        return $output;
-    }
-    
-    public function display_category_mapping() {
-        // Handle refresh categories action
-        if (isset($_POST['refresh_categories']) && check_admin_referer('fruugosync_category_mapping')) {
-            $categories = $this->get_fruugo_categories(true);
-            if ($categories) {
-                $this->add_admin_notice('Fruugo categories refreshed successfully!');
-            }
-        }
-    
-        // Handle save mappings action
-        if (isset($_POST['save_category_mappings']) && check_admin_referer('fruugosync_category_mapping')) {
-            $mappings = isset($_POST['category_mapping']) ? (array) $_POST['category_mapping'] : array();
-            update_option('fruugosync_category_mappings', $mappings);
-            $this->add_admin_notice('Category mappings saved successfully!');
-        }
-    
-        $fruugo_categories = $this->get_fruugo_categories();
-        $woo_categories = get_terms([
-            'taxonomy' => 'product_cat',
-            'hide_empty' => false,
-        ]);
-        $saved_mappings = get_option('fruugosync_category_mappings', array());
-        
-        // Display any pending admin notices
-        settings_errors('fruugosync_messages');
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
-            <!-- Refresh Categories Form -->
-            <form method="post" action="" style="margin-bottom: 20px;">
-                <?php wp_nonce_field('fruugosync_category_mapping'); ?>
-                <input type="submit" name="refresh_categories" class="button" 
-                       value="<?php esc_attr_e('Refresh Fruugo Categories', 'fruugosync'); ?>">
-            </form>
-    
-            <!-- Category Mapping Form -->
-            <form method="post" action="">
-                <?php wp_nonce_field('fruugosync_category_mapping'); ?>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th>WooCommerce Category</th>
-                            <th>Fruugo Category</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php 
-                        if (empty($fruugo_categories)) {
-                            ?>
-                            <tr>
-                                <td colspan="2">
-                                    <?php _e('No Fruugo categories available. Please check your API credentials and try refreshing.', 'fruugosync'); ?>
-                                </td>
-                            </tr>
-                            <?php
-                        } else {
-                            foreach ($woo_categories as $woo_cat): 
-                            ?>
-                            <tr>
-                                <td><?php echo esc_html($woo_cat->name); ?></td>
-                                <td>
-                                    <select name="category_mapping[<?php echo esc_attr($woo_cat->term_id); ?>]">
-                                        <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
-                                        <?php 
-                                        echo $this->render_category_options(
-                                            $fruugo_categories, 
-                                            isset($saved_mappings[$woo_cat->term_id]) ? $saved_mappings[$woo_cat->term_id] : ''
-                                        );
-                                        ?>
-                                    </select>
-                                </td>
-                            </tr>
-                            <?php 
-                            endforeach;
-                        }
-                        ?>
-                    </tbody>
-                </table>
-                <p class="submit">
-                    <input type="submit" name="save_category_mappings" class="button button-primary" 
-                           value="<?php esc_attr_e('Save Category Mappings', 'fruugosync'); ?>">
-                </p>
-            </form>
+        <div class="notice notice-error">
+            <p><?php _e('FruugoSync: Required files are missing. Please reinstall the plugin.', 'fruugosync'); ?></p>
         </div>
         <?php
-    }
-
-
+    });
+    return;
 }
 
-// Initialize the plugin
-function fruugosync_init() {
-    if (class_exists('WooCommerce')) {
-        new FruugoSync();
-    }
-}
-add_action('plugins_loaded', 'fruugosync_init');
-
-// Activation hook
+// Plugin activation
 register_activation_hook(__FILE__, 'fruugosync_activate');
-
 function fruugosync_activate() {
-    // Create upload directory
+    // Create necessary directories
     $upload_dir = wp_upload_dir();
     $fruugo_dir = $upload_dir['basedir'] . '/cedcommerce_fruugouploads';
     
     if (!file_exists($fruugo_dir)) {
         wp_mkdir_p($fruugo_dir);
     }
+
+    // Create assets directories if they don't exist
+    $assets_dir = FRUUGOSYNC_PATH . 'assets/js';
+    if (!file_exists($assets_dir)) {
+        wp_mkdir_p($assets_dir);
+    }
+
+    // Create admin.js if it doesn't exist
+    $admin_js_file = $assets_dir . '/admin.js';
+    if (!file_exists($admin_js_file)) {
+        $admin_js_content = <<<'EOT'
+jQuery(document).ready(function($) {
+    // Test Connection Handler
+    $('#test-connection').on('click', function() {
+        var $button = $(this);
+        var $status = $('#api-status-indicator');
+        
+        // Disable button and show loading state
+        $button.prop('disabled', true).text('Testing...');
+        
+        $.ajax({
+            url: fruugosync_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'test_fruugo_connection',
+                nonce: fruugosync_ajax.nonce
+            },
+            success: function(response) {
+                $status.removeClass('connected disconnected unknown');
+                
+                if (response.success) {
+                    $status.addClass('connected')
+                        .html('<span class="status-text">Connected</span>');
+                } else {
+                    $status.addClass('disconnected')
+                        .html('<span class="status-text">Not Connected</span>' +
+                              '<p class="error-message">' + response.message + '</p>');
+                }
+            },
+            error: function(xhr, status, error) {
+                $status.removeClass('connected disconnected unknown')
+                    .addClass('disconnected')
+                    .html('<span class="status-text">Not Connected</span>' +
+                          '<p class="error-message">Ajax error: ' + error + '</p>');
+            },
+            complete: function() {
+                // Reset button state
+                $button.prop('disabled', false).text('Test Connection');
+            }
+        });
+    });
+
+    // Generate CSV Handler
+    $('#generate-csv').on('click', function() {
+        var $button = $(this);
+        $button.prop('disabled', true).text('Generating...');
+        
+        $.ajax({
+            url: fruugosync_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'generate_fruugo_csv',
+                nonce: fruugosync_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('CSV generated successfully!');
+                } else {
+                    alert('Error generating CSV: ' + response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('Error generating CSV: ' + error);
+            },
+            complete: function() {
+                $button.prop('disabled', false).text('Generate Product CSV');
+            }
+        });
+    });
+});
+EOT;
+        file_put_contents($admin_js_file, $admin_js_content);
+    }
+}
+
+// Plugin deactivation
+register_deactivation_hook(__FILE__, 'fruugosync_deactivate');
+function fruugosync_deactivate() {
+    // Clean up if needed
+}
+
+// Initialize the plugin
+function fruugosync_init() {
+    // Check if WooCommerce is active
+    if (!class_exists('WooCommerce')) {
+        add_action('admin_notices', function() {
+            ?>
+            <div class="notice notice-error">
+                <p><?php _e('FruugoSync requires WooCommerce to be installed and activated.', 'fruugosync'); ?></p>
+            </div>
+            <?php
+        });
+        return;
+    }
+
+    // Initialize the main plugin class
+    global $fruugosync;
+    $fruugosync = new FruugoSync();
+}
+add_action('plugins_loaded', 'fruugosync_init');
+
+// Add settings link on plugin page
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'fruugosync_settings_link');
+function fruugosync_settings_link($links) {
+    $settings_link = '<a href="admin.php?page=fruugosync-settings">' . __('Settings', 'fruugosync') . '</a>';
+    array_unshift($links, $settings_link);
+    return $links;
 }
