@@ -27,7 +27,7 @@ class FruugoSync_API {
     /**
      * Make an API request to Fruugo
      */
-    public function make_request($endpoint, $method = 'GET', $body = null) {
+    private function make_request($endpoint, $method = 'GET', $body = null) {
         $credentials = $this->settings->get_api_credentials();
         
         if (empty($credentials['username']) || empty($credentials['password'])) {
@@ -36,30 +36,37 @@ class FruugoSync_API {
                 'message' => __('API credentials are not configured.', 'fruugosync')
             );
         }
-
+    
         $args = array(
-            'method'    => $method,
-            'headers'   => array(
+            'method'      => $method,
+            'timeout'     => 90,    // Increased timeout
+            'redirection' => 5,
+            'httpversion' => '1.1',
+            'blocking'    => true,
+            'headers'     => array(
                 'Authorization' => 'Basic ' . base64_encode($credentials['username'] . ':' . $credentials['password']),
-                'Content-Type' => 'application/json',
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
                 'X-Correlation-ID' => uniqid('fruugosync_'),
             ),
-            'timeout'   => 60,
-            'sslverify' => true
+            'cookies'     => array(),
+            'sslverify'   => false  // Try with SSL verification disabled if having issues
         );
-
+    
         if ($body) {
             $args['body'] = json_encode($body);
         }
-
+    
         // Log request if debug mode is enabled
         if ($this->settings->is_debug_mode()) {
-            error_log('FruugoSync API Request: ' . $endpoint);
-            error_log('Request Args: ' . print_r($args, true));
+            error_log('FruugoSync API Request URL: ' . $this->api_base_url . $endpoint);
+            error_log('FruugoSync API Request Args: ' . print_r($args, true));
         }
-
+    
+        // Make the request
         $response = wp_remote_request($this->api_base_url . $endpoint, $args);
-
+    
+        // Handle response
         if (is_wp_error($response)) {
             $error_message = $response->get_error_message();
             error_log('FruugoSync API Error: ' . $error_message);
@@ -68,41 +75,33 @@ class FruugoSync_API {
                 'message' => $error_message
             );
         }
-
+    
         $response_code = wp_remote_retrieve_response_code($response);
         $response_body = wp_remote_retrieve_body($response);
-
+    
         // Log response if debug mode is enabled
         if ($this->settings->is_debug_mode()) {
-            error_log('API Response Code: ' . $response_code);
-            error_log('API Response: ' . $response_body);
+            error_log('FruugoSync API Response Code: ' . $response_code);
+            error_log('FruugoSync API Response Body: ' . $response_body);
         }
-
-        if ($response_code === 202) {
+    
+        // Handle different response codes
+        if ($response_code >= 200 && $response_code < 300) {
             return array(
                 'success' => true,
                 'data' => json_decode($response_body, true)
             );
         }
-
-        if ($response_code !== 200) {
-            $error_message = sprintf(
+    
+        return array(
+            'success' => false,
+            'message' => sprintf(
                 __('API request failed with code %d: %s', 'fruugosync'),
                 $response_code,
                 wp_remote_retrieve_response_message($response)
-            );
-            return array(
-                'success' => false,
-                'message' => $error_message
-            );
-        }
-
-        return array(
-            'success' => true,
-            'data' => json_decode($response_body, true)
+            )
         );
     }
-
     /**
      * Test API connection
      */

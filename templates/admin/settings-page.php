@@ -2,10 +2,22 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+// Ensure api_status is an array
+$api_status = is_array($api_status) ? $api_status : array(
+    'status' => 'unknown',
+    'error' => ''
+);
 ?>
 <div class="wrap">
     <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
     
+    <?php if (!class_exists('WooCommerce')): ?>
+        <div class="notice notice-error">
+            <p><?php _e('FruugoSync requires WooCommerce to be installed and activated.', 'fruugosync'); ?></p>
+        </div>
+    <?php endif; ?>
+
     <div class="notice notice-info">
         <p><?php _e('Configure your Fruugo API credentials and settings below.', 'fruugosync'); ?></p>
     </div>
@@ -41,6 +53,7 @@ if (!defined('ABSPATH')) {
                     </td>
                 </tr>
             </table>
+            <?php submit_button(); ?>
         </div>
 
         <div class="card">
@@ -92,7 +105,5 @@ if (!defined('ABSPATH')) {
                 </tr>
             </table>
         </div>
-
-        <?php submit_button(); ?>
     </form>
 </div>
