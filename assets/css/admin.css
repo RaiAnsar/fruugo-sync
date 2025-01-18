@@ -1,0 +1,117 @@
+/* General Styles */
+.card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.card h2 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+/* API Status Styles */
+.api-status-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.api-status {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    border-radius: 4px;
+    background: #f8f9fa;
+    margin-right: 10px;
+}
+
+.api-status .status-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.api-status.connected {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.api-status.connected .status-icon {
+    background-color: #28a745;
+}
+
+.api-status.disconnected {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.api-status.disconnected .status-icon {
+    background-color: #dc3545;
+}
+
+.api-status .error-message {
+    margin: 5px 0 0;
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+/* Category Mapping Styles */
+.fruugosync-category-mapping {
+    margin-top: 20px;
+}
+
+.actions-bar {
+    margin: 15px 0;
+    padding: 10px 0;
+}
+
+.actions-bar.bottom {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.column-woo-category {
+    width: 40%;
+}
+
+.column-fruugo-category {
+    width: 60%;
+}
+
+.fruugo-category-select {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.button.loading:after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 10px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-left-color: rgba(0,0,0,0.4);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Notices */
+.notice {
+    margin: 20px 0;
+}
