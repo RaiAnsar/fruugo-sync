@@ -152,15 +152,7 @@ class FruugoSync {
         <?php
     }
 
-    private function get_fruugo_categories() {
-        // This is a placeholder - we need to implement actual API call
-        // For now, returning sample data
-        return array(
-            array('id' => '1', 'name' => 'Electronics'),
-            array('id' => '2', 'name' => 'Home & Garden'),
-            // Add more categories from Fruugo API
-        );
-    }
+
 
     public function generate_product_csv() {
         $products = wc_get_products(array(
