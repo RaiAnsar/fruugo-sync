@@ -320,32 +320,48 @@ public function render_category_mapping_page() {
             ));
         }
     
-        // Increase PHP timeout for this request
-        if (function_exists('set_time_limit')) {
-            set_time_limit(300);
+        // Delete existing transients
+        delete_transient('fruugosync_categories');
+        delete_transient('fruugosync_level1_categories');
+    
+        $result = $this->api->get_categories(true);
+        
+        if ($result['success']) {
+            wp_send_json_success(array(
+                'level1_categories' => $result['data']['level1_categories'],
+                'message' => __('Categories refreshed successfully', 'fruugosync')
+            ));
+        } else {
+            wp_send_json_error(array(
+                'message' => $result['message']
+            ));
+        }
+    }
+    
+    /**
+     * AJAX handler for getting subcategories
+     */
+    public function ajax_get_subcategories() {
+        check_ajax_referer('fruugosync-ajax-nonce', 'nonce');
+    
+        if (!isset($_POST['parent']) || !isset($_POST['level'])) {
+            wp_send_json_error(array(
+                'message' => __('Missing required parameters', 'fruugosync')
+            ));
         }
     
-        try {
-            // Clear cache
-            delete_transient('fruugosync_categories');
-            
-            // Get fresh categories
-            $result = $this->api->get_categories(true);
-            
-            if ($result['success']) {
-                wp_send_json_success(array(
-                    'categories' => $result['data'],
-                    'message' => __('Categories refreshed successfully', 'fruugosync')
-                ));
-            } else {
-                wp_send_json_error(array(
-                    'message' => $result['message']
-                ));
-            }
-        } catch (Exception $e) {
-            error_log('FruugoSync AJAX Error: ' . $e->getMessage());
+        $parent = sanitize_text_field($_POST['parent']);
+        $level = intval($_POST['level']);
+    
+        $result = $this->api->get_subcategories($parent, $level);
+    
+        if ($result['success']) {
+            wp_send_json_success(array(
+                'categories' => $result['data']
+            ));
+        } else {
             wp_send_json_error(array(
-                'message' => __('Error refreshing categories. Please try again.', 'fruugosync')
+                'message' => $result['message']
             ));
         }
     }

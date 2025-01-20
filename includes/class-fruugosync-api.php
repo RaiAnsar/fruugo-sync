@@ -93,7 +93,7 @@ public function clear_cache() {
  */
 public function get_categories($force_refresh = false) {
     try {
-        // Check cache first
+        // First check transient
         if (!$force_refresh) {
             $cached_categories = get_transient('fruugosync_categories');
             if (false !== $cached_categories) {
@@ -104,76 +104,84 @@ public function get_categories($force_refresh = false) {
             }
         }
 
-        // Try alternative endpoint for categories
-        $endpoint = 'https://product-api.fruugo.com/v3/categories';
+        // Get categories from file
+        $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
         
-        $args = array(
-            'method' => 'GET',  // Using GET for categories endpoint
-            'timeout' => 120,
-            'headers' => array(
-                'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'X-Correlation-ID' => 'fruugosync_' . uniqid()
-            ),
-            'sslverify' => false
-        );
-
-        // Log request
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('FruugoSync Category Request URL: ' . $endpoint);
-            error_log('FruugoSync Category Request Args: ' . print_r($args, true));
-        }
-
-        $response = wp_remote_request($endpoint, $args);
-
-        if (is_wp_error($response)) {
-            throw new Exception($response->get_error_message());
-        }
-
-        $response_code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-
-        // Log response
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('FruugoSync Category Response Code: ' . $response_code);
-            error_log('FruugoSync Category Response Body: ' . $body);
-        }
-
-        if ($response_code !== 200) {
-            // If v3 fails, try the legacy category endpoint
-            $legacy_endpoint = 'https://www.fruugo.com/categories';
-            $legacy_response = wp_remote_get($legacy_endpoint, $args);
+        if (file_exists($json_file)) {
+            $categories = json_decode(file_get_contents($json_file), true);
             
-            if (is_wp_error($legacy_response)) {
-                throw new Exception($legacy_response->get_error_message());
+            if (json_last_error() === JSON_ERROR_NONE) {
+                // Process categories to get unique level1 values
+                $level1_categories = array();
+                foreach ($categories as $category) {
+                    if (!empty($category['level1'])) {
+                        $level1_categories[] = trim($category['level1']);
+                    }
+                }
+                $level1_categories = array_unique($level1_categories);
+                
+                // Store full category data for later use
+                set_transient('fruugosync_categories', $categories, DAY_IN_SECONDS);
+                // Store level 1 categories separately
+                set_transient('fruugosync_level1_categories', $level1_categories, DAY_IN_SECONDS);
+                
+                return array(
+                    'success' => true,
+                    'data' => array(
+                        'all_categories' => $categories,
+                        'level1_categories' => $level1_categories
+                    )
+                );
             }
             
-            $legacy_body = wp_remote_retrieve_body($legacy_response);
-            $categories = json_decode($legacy_body, true);
-        } else {
-            $categories = json_decode($body, true);
+            throw new Exception('Invalid category data format');
         }
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception('Invalid JSON response from API');
-        }
-
-        // Cache the result
-        set_transient('fruugosync_categories', $categories, HOUR_IN_SECONDS);
-        
-        return array(
-            'success' => true,
-            'data' => $categories
-        );
+        throw new Exception('Category file not found');
 
     } catch (Exception $e) {
         error_log('FruugoSync Category Error: ' . $e->getMessage());
-        error_log('FruugoSync Category Error Stack Trace: ' . $e->getTraceAsString());
-        
         return array(
             'success' => false,
-            'message' => 'Error fetching categories: ' . $e->getMessage()
+            'message' => 'Error loading categories: ' . $e->getMessage()
+        );
+    }
+}
+
+/**
+ * Get subcategories for a specific level
+ */
+public function get_subcategories($parent_category, $level) {
+    try {
+        $categories = get_transient('fruugosync_categories');
+        if (!$categories) {
+            $result = $this->get_categories();
+            if (!$result['success']) {
+                throw new Exception($result['message']);
+            }
+            $categories = $result['data']['all_categories'];
+        }
+
+        $subcategories = array();
+        foreach ($categories as $category) {
+            if (trim($category['level' . ($level-1)]) === trim($parent_category)) {
+                $next_level = 'level' . $level;
+                if (!empty($category[$next_level])) {
+                    $subcategories[] = trim($category[$next_level]);
+                }
+            }
+        }
+
+        return array(
+            'success' => true,
+            'data' => array_unique($subcategories)
+        );
+
+    } catch (Exception $e) {
+        error_log('FruugoSync Subcategory Error: ' . $e->getMessage());
+        return array(
+            'success' => false,
+            'message' => 'Error loading subcategories: ' . $e->getMessage()
         );
     }
 }
