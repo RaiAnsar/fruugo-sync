@@ -236,6 +236,8 @@ public function render_category_mapping_page() {
     $woocommerce_categories = $this->get_woocommerce_categories();
     $categories = $this->api->get_categories(); // Fruugo categories
 
+    error_log("Categories Data: " . print_r($categories['data'], true));
+
     if (!$categories['success']) {
         echo '<div class="notice notice-error"><p>' . esc_html($categories['message']) . '</p></div>';
         return;
