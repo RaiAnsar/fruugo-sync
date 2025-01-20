@@ -217,33 +217,39 @@ private function get_woocommerce_categories() {
  * Render category mapping page
  */
 
-private function render_hierarchical_categories($categories, $level = 0) {
+ private function render_hierarchical_categories($categories, $level = 0) {
+    if (empty($categories) || !is_array($categories)) {
+        return ''; // Safeguard against invalid input
+    }
+
     $html = '';
     foreach ($categories as $category) {
-        $indentation = str_repeat('&nbsp;&nbsp;&nbsp;', $level); // Indentation for subcategories
-        $html .= '<option value="' . esc_attr($category['id']) . '">' .
-            $indentation . esc_html($category['name']) . '</option>';
+        if (is_string($category)) {
+            // If the category is a string (flat structure)
+            $html .= '<option value="' . esc_attr($category) . '">' . esc_html($category) . '</option>';
+        } elseif (is_array($category) && isset($category['name'])) {
+            // If the category is hierarchical
+            $indentation = str_repeat('&nbsp;&nbsp;&nbsp;', $level);
+            $html .= '<option value="' . esc_attr($category['id'] ?? $category['name']) . '">' .
+                $indentation . esc_html($category['name']) . '</option>';
 
-        if (!empty($category['children'])) {
-            $html .= $this->render_hierarchical_categories($category['children'], $level + 1);
+            if (!empty($category['children'])) {
+                $html .= $this->render_hierarchical_categories($category['children'], $level + 1);
+            }
         }
     }
     return $html;
 }
 
-public function render_category_mapping_page() {
-    // Fetch WooCommerce categories
-    $woocommerce_categories = $this->get_woocommerce_categories();
-    $categories = $this->api->get_categories(); // Fruugo categories
 
-    error_log("Categories Data: " . print_r($categories['data'], true));
+public function render_category_mapping_page() {
+    $categories = $this->api->get_categories();
 
     if (!$categories['success']) {
-        echo '<div class="notice notice-error"><p>' . esc_html($categories['message']) . '</p></div>';
+        echo '<div class="notice notice-error"><p>' . __('Failed to load Fruugo categories.', 'fruugosync') . '</p></div>';
         return;
     }
 
-    // Render the category mapping table
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
@@ -259,33 +265,26 @@ public function render_category_mapping_page() {
                 </tr>
             </thead>
             <tbody>
-                <?php if (!empty($woocommerce_categories)): ?>
-                    <?php foreach ($woocommerce_categories as $wc_category): ?>
-                        <tr>
-                            <td><?php echo esc_html($wc_category['name']); ?></td>
-                            <td>
-                                <select class="fruugo-category-dropdown" data-wc-category="<?php echo esc_attr($wc_category['slug']); ?>">
-                                    <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
-                                    <?php echo $this->render_hierarchical_categories($categories['data']); ?>
-                                </select>
-                            </td>
-                            <td>
-                                <button type="button" class="button save-mapping" data-wc-category="<?php echo esc_attr($wc_category['slug']); ?>">
-                                    <?php _e('Save Mapping', 'fruugosync'); ?>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
+                <?php foreach ($woocommerce_categories as $wc_category): ?>
                     <tr>
-                        <td colspan="3"><?php _e('No WooCommerce categories found.', 'fruugosync'); ?></td>
+                        <td><?php echo esc_html($wc_category['name']); ?></td>
+                        <td>
+                            <select class="fruugo-category-dropdown">
+                                <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
+                                <?php echo $this->render_hierarchical_categories($categories['data']); ?>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="button save-mapping">Save Mapping</button>
+                        </td>
                     </tr>
-                <?php endif; ?>
+                <?php endforeach; ?>
             </tbody>
         </table>
     </div>
     <?php
 }
+
 
 
 
