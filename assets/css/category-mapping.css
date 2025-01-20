@@ -1,0 +1,54 @@
+/* Category Mapping Specific Styles */
+.ced_fruugo_cat_ul {
+    margin: 10px 0 10px 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.ced_fruugo_cat_ul li {
+    margin: 5px 0;
+    padding: 5px;
+}
+
+.ced_fruugo_expand_fruugocat {
+    cursor: pointer;
+    color: #0073aa;
+    display: block;
+    padding: 5px;
+}
+
+.ced_fruugo_expand_fruugocat:hover {
+    color: #00a0d2;
+    background: #f8f9fa;
+}
+
+/* Root Categories Section */
+.root-categories {
+    background: #fff;
+    padding: 15px;
+    border: 1px solid #ddd;
+    margin: 15px 0;
+}
+
+/* Selected Categories Section */
+.selected-categories-wrapper {
+    background: #fff;
+    padding: 15px;
+    border: 1px solid #ddd;
+    margin-top: 20px;
+}
+
+/* Loading States */
+.ced_fruugo_category_loader {
+    display: none;
+    margin-left: 5px;
+}
+
+.loading .ced_fruugo_category_loader {
+    display: inline-block;
+}
+
+/* Notices */
+.notice {
+    margin: 15px 0;
+}

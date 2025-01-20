@@ -50,6 +50,8 @@ class FruugoSync_Admin {
         add_action('admin_init', array($this, 'register_settings'));
     }
 
+    
+
     /**
      * Register settings
      */
@@ -85,38 +87,30 @@ class FruugoSync_Admin {
     /**
      * Enqueue admin assets
      */
-    public function enqueue_admin_assets($hook) {
-        if (strpos($hook, 'fruugosync') === false) {
-            return;
-        }
-
+// In your admin class
+public function enqueue_admin_assets($hook) {
+    if (strpos($hook, 'fruugosync-categories') !== false) {
         wp_enqueue_style(
-            'fruugosync-admin',
-            FRUUGOSYNC_ASSETS_URL . 'css/admin.css',
+            'fruugosync-category-mapping',
+            FRUUGOSYNC_URL . 'assets/css/category-mapping.css',
             array(),
             FRUUGOSYNC_VERSION
         );
 
         wp_enqueue_script(
-            'fruugosync-admin',
-            FRUUGOSYNC_ASSETS_URL . 'js/admin.js',
+            'fruugosync-category-mapping',
+            FRUUGOSYNC_URL . 'assets/js/category-mapping.js',
             array('jquery'),
             FRUUGOSYNC_VERSION,
             true
         );
 
-        wp_localize_script('fruugosync-admin', 'fruugosync_ajax', array(
+        wp_localize_script('fruugosync-category-mapping', 'fruugosync_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('fruugosync-ajax-nonce'),
-            'i18n' => array(
-                'testing_connection' => __('Testing connection...', 'fruugosync'),
-                'connection_success' => __('Successfully connected', 'fruugosync'),
-                'connection_failed' => __('Connection failed', 'fruugosync'),
-                'refreshing_categories' => __('Refreshing categories...', 'fruugosync'),
-                'saving_mappings' => __('Saving mappings...', 'fruugosync')
-            )
+            'nonce' => wp_create_nonce('fruugosync-ajax-nonce')
         ));
     }
+}
 
     /**
      * Render settings page
