@@ -185,13 +185,7 @@ class FruugoSync_Admin {
         require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/settings-page.php';
     }
 
-/*temporary code */
-//     error_log('Category file path: ' . FRUUGOSYNC_PATH . 'data/json/category.json');
-// error_log('File exists: ' . (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json') ? 'yes' : 'no'));
-// if (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json')) {
-//     error_log('File permissions: ' . decoct(fileperms(FRUUGOSYNC_PATH . 'data/json/category.json') & 0777));
-//     error_log('File content: ' . substr(file_get_contents(FRUUGOSYNC_PATH . 'data/json/category.json'), 0, 500));
-// }
+
 
     /**
      * Render category mapping page
@@ -203,6 +197,11 @@ class FruugoSync_Admin {
  * Render category mapping page
  */
 public function render_category_mapping_page() {
+    /*temporary code */
+error_log("Starting category page render...");
+$absolute_path = '/home/mediatronixs/htdocs/mediatronixs.com/wp-content/plugins/fruugo-sync/data/json/category.json';
+error_log("Checking file at: " . $absolute_path);
+error_log("File exists? " . (file_exists($absolute_path) ? 'YES' : 'NO'));
     if (!current_user_can('manage_options')) {
         return;
     }

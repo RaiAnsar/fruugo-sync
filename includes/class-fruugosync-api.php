@@ -92,59 +92,49 @@ public function clear_cache() {
  * Get Fruugo categories
  */
 public function get_categories($force_refresh = false) {
-    try {
-        // Build file path
-        $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
-        error_log('Full path to category file: ' . $json_file);
-
-        // Debug file existence and permissions
-        error_log('File exists check: ' . (file_exists($json_file) ? 'YES' : 'NO'));
-        error_log('Is readable check: ' . (is_readable($json_file) ? 'YES' : 'NO'));
-        if (file_exists($json_file)) {
-            error_log('File permissions: ' . substr(sprintf('%o', fileperms($json_file)), -4));
-        }
-
-        if (!file_exists($json_file)) {
-            throw new Exception('Category file not found at: ' . $json_file);
-        }
-
-        $json_content = file_get_contents($json_file);
-        if ($json_content === false) {
-            error_log('Failed to read file contents');
-            throw new Exception('Unable to read category file');
-        }
-
-        error_log('File contents length: ' . strlen($json_content));
-        error_log('First 100 chars: ' . substr($json_content, 0, 100));
-
-        $categories = json_decode($json_content, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log('JSON decode error: ' . json_last_error_msg());
-            throw new Exception('Invalid JSON in category file');
-        }
-
-        $level1_categories = array();
-        foreach ($categories as $category) {
-            if (!empty($category['level1'])) {
-                $level1_categories[] = trim($category['level1']);
-            }
-        }
-        $level1_categories = array_values(array_unique($level1_categories));
-
-        error_log('Found ' . count($level1_categories) . ' level 1 categories');
-
-        return array(
-            'success' => true,
-            'data' => $level1_categories
-        );
-
-    } catch (Exception $e) {
-        error_log('FruugoSync Category Error: ' . $e->getMessage());
+    $file_path = '/home/mediatronixs/htdocs/mediatronixs.com/wp-content/plugins/fruugo-sync/data/json/category.json';
+    error_log("Getting categories from: " . $file_path);
+    
+    if (!file_exists($file_path)) {
+        error_log("File does not exist at: " . $file_path);
         return array(
             'success' => false,
-            'message' => $e->getMessage()
+            'message' => 'Category file not found'
         );
     }
+
+    $content = file_get_contents($file_path);
+    if ($content === false) {
+        error_log("Could not read file");
+        return array(
+            'success' => false,
+            'message' => 'Could not read category file'
+        );
+    }
+
+    $categories = json_decode($content, true);
+    if (!$categories) {
+        error_log("Could not parse JSON");
+        return array(
+            'success' => false,
+            'message' => 'Invalid category data'
+        );
+    }
+
+    $level1_cats = array();
+    foreach ($categories as $cat) {
+        if (!empty($cat['level1'])) {
+            $level1_cats[] = trim($cat['level1']);
+        }
+    }
+    $level1_cats = array_unique($level1_cats);
+
+    error_log("Found categories: " . print_r($level1_cats, true));
+
+    return array(
+        'success' => true,
+        'data' => array_values($level1_cats)
+    );
 }
 
 /**
