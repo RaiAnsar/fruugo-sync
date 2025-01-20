@@ -199,12 +199,8 @@ public function render_category_mapping_page() {
         return;
     }
 
-    // Check API status
-    $api_status = get_option('fruugosync_api_status', array(
-        'status' => 'unknown',
-        'error' => ''
-    ));
-
+    // Get current settings and categories
+    $api_status = $this->settings->get('fruugosync_api_status');
     if (!is_array($api_status)) {
         $api_status = array(
             'status' => 'unknown',
@@ -212,6 +208,7 @@ public function render_category_mapping_page() {
         );
     }
 
+    // Show warning if not connected
     if ($api_status['status'] !== 'connected') {
         echo '<div class="wrap">';
         echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
@@ -222,13 +219,28 @@ public function render_category_mapping_page() {
         return;
     }
 
+    // Get categories and handle errors
+    $fruugo_categories = $this->api->get_categories();
+    if (!$fruugo_categories['success']) {
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
+        echo '<div class="notice notice-error"><p>' . 
+             esc_html($fruugo_categories['message']) . 
+             '</p></div>';
+        
+        // Add refresh button
+        echo '<p><button type="button" id="refresh-categories" class="button">' . 
+             __('Refresh Fruugo Categories', 'fruugosync') . 
+             '</button></p>';
+        echo '</div>';
+        return;
+    }
+
+    // Get WooCommerce categories and mappings
     $woo_categories = get_terms(array(
         'taxonomy' => 'product_cat',
         'hide_empty' => false
     ));
-
-    // Get Fruugo categories with error handling
-    $fruugo_categories = $this->api->get_categories();
     $current_mappings = $this->settings->get_category_mappings();
 
     // Include template
