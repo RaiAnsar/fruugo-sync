@@ -16,11 +16,12 @@
 if (!defined('ABSPATH')) {
     exit;
 }
-
+error_log('FRUUGOSYNC_PATH: ' . plugin_dir_path(__FILE__));
 // Define plugin constants
 define('FRUUGOSYNC_VERSION', '1.0.0');
 define('FRUUGOSYNC_FILE', __FILE__);
 define('FRUUGOSYNC_PATH', plugin_dir_path(__FILE__));
+
 define('FRUUGOSYNC_URL', plugin_dir_url(__FILE__));
 define('FRUUGOSYNC_ASSETS_URL', FRUUGOSYNC_URL . 'assets/');
 define('FRUUGOSYNC_INCLUDES_PATH', FRUUGOSYNC_PATH . 'includes/');

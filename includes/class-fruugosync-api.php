@@ -93,34 +93,25 @@ public function clear_cache() {
  */
 public function get_categories($force_refresh = false) {
     try {
-        // Get categories from local JSON file
-        $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
-        
-        error_log('Attempting to read category file: ' . $json_file);
-        
+        // Debug path
+        $json_file = FRUUGOSYNC_PATH . '/data/json/category.json';  // Added leading slash
+        error_log('Attempting to load categories from: ' . $json_file);
+
+        // First check if file exists
         if (!file_exists($json_file)) {
-            error_log('Category file does not exist at: ' . $json_file);
-            throw new Exception('Category file not found');
+            // Try alternate path
+            $json_file = dirname(FRUUGOSYNC_PATH) . '/fruugo-sync/data/json/category.json';
+            error_log('Trying alternate path: ' . $json_file);
+            
+            if (!file_exists($json_file)) {
+                throw new Exception('Category file not found at: ' . $json_file);
+            }
         }
 
-        $json_content = file_get_contents($json_file);
-        if ($json_content === false) {
-            error_log('Failed to read category file');
-            throw new Exception('Failed to read category file');
-        }
-
-        error_log('Category file content: ' . substr($json_content, 0, 500)); // Log first 500 chars
-
-        $categories = json_decode($json_content, true);
+        // Read and parse the file
+        $categories = json_decode(file_get_contents($json_file), true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log('JSON decode error: ' . json_last_error_msg());
-            throw new Exception('Invalid JSON data');
-        }
-
-        error_log('Number of categories loaded: ' . count($categories));
-        
-        if (!is_array($categories) || empty($categories)) {
-            throw new Exception('No categories found in file');
+            throw new Exception('Invalid JSON in category file');
         }
 
         // Get unique level1 categories
@@ -132,8 +123,6 @@ public function get_categories($force_refresh = false) {
         }
         $level1_categories = array_values(array_unique($level1_categories));
 
-        error_log('Found level1 categories: ' . print_r($level1_categories, true));
-
         return array(
             'success' => true,
             'data' => $level1_categories
@@ -143,7 +132,7 @@ public function get_categories($force_refresh = false) {
         error_log('FruugoSync Category Error: ' . $e->getMessage());
         return array(
             'success' => false,
-            'message' => 'Error loading categories: ' . $e->getMessage()
+            'message' => $e->getMessage()
         );
     }
 }
