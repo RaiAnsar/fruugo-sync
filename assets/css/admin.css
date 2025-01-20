@@ -288,3 +288,28 @@
     margin: 10px 0;
     background: #fff;
 }
+.ced_fruugo_cat_ul {
+    margin: 10px 0 10px 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.ced_fruugo_cat_ul li {
+    margin: 5px 0;
+    padding: 5px;
+}
+
+.ced_fruugo_expand_fruugocat {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ced_fruugo_category_loader {
+    display: none;
+}
+
+.loading .ced_fruugo_category_loader {
+    display: inline;
+}

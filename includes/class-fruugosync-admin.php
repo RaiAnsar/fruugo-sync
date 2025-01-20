@@ -197,68 +197,65 @@ class FruugoSync_Admin {
  * Render category mapping page
  */
 public function render_category_mapping_page() {
-    /*temporary code */
-error_log("Starting category page render...");
-$absolute_path = '/home/mediatronixs/htdocs/mediatronixs.com/wp-content/plugins/fruugo-sync/data/json/category.json';
-error_log("Checking file at: " . $absolute_path);
-error_log("File exists? " . (file_exists($absolute_path) ? 'YES' : 'NO'));
     if (!current_user_can('manage_options')) {
         return;
     }
- // Check if category file exists
- $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
- if (!file_exists($json_file)) {
-     echo '<div class="notice notice-error"><p>' . 
-          __('Category file not found. Please try refreshing categories.', 'fruugosync') . 
-          '</p></div>';
-     return;
- }
-    // Get current settings and categories
-    $api_status = $this->settings->get('fruugosync_api_status');
-    if (!is_array($api_status)) {
-        $api_status = array(
-            'status' => 'unknown',
-            'error' => ''
-        );
-    }
 
-    // Show warning if not connected
-    if ($api_status['status'] !== 'connected') {
-        echo '<div class="wrap">';
-        echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
-        echo '<div class="notice notice-error"><p>' . 
-             __('Please test your API connection before mapping categories.', 'fruugosync') . 
-             '</p></div>';
-        echo '</div>';
+    $categories = $this->api->get_categories();
+    error_log("Categories response: " . print_r($categories, true));
+
+    if (!$categories['success']) {
+        echo '<div class="notice notice-error"><p>';
+        echo esc_html($categories['message']);
+        echo '</p></div>';
         return;
     }
 
-    // Get categories and handle errors
-    $fruugo_categories = $this->api->get_categories();
-    if (!$fruugo_categories['success']) {
-        echo '<div class="wrap">';
-        echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
-        echo '<div class="notice notice-error"><p>' . 
-             esc_html($fruugo_categories['message']) . 
-             '</p></div>';
+    // Get root categories
+    $root_categories = $categories['data'];
+    error_log("Root categories: " . print_r($root_categories, true));
+
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+
+        <div class="notice notice-info">
+            <p><?php _e('Map your WooCommerce categories to Fruugo categories.', 'fruugosync'); ?></p>
+        </div>
+
+        <button type="button" id="refresh-categories" class="button">
+            <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
+        </button>
+
+        <h2><?php _e('Root Categories', 'fruugosync'); ?></h2>
         
-        // Add refresh button
-        echo '<p><button type="button" id="refresh-categories" class="button">' . 
-             __('Refresh Fruugo Categories', 'fruugosync') . 
-             '</button></p>';
-        echo '</div>';
-        return;
-    }
+        <div class="category-tree-container">
+            <ul class="ced_fruugo_cat_ul ced_fruugo_1lvl">
+                <?php foreach ($root_categories as $category): ?>
+                    <li>
+                        <label class="ced_fruugo_expand_fruugocat" 
+                               data-parent-cat-name="<?php echo esc_attr($category); ?>" 
+                               data-cat-level="1">
+                            <?php echo esc_html($category); ?>
+                            <img class="ced_fruugo_category_loader" 
+                                 src="<?php echo esc_url(FRUUGOSYNC_URL . 'assets/images/loading.gif'); ?>" 
+                                 width="20" height="20" style="display: none;">
+                        </label>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <ul class="ced_fruugo_cat_ul ced_fruugo_2lvl"></ul>
+            <ul class="ced_fruugo_cat_ul ced_fruugo_3lvl"></ul>
+            <ul class="ced_fruugo_cat_ul ced_fruugo_4lvl"></ul>
+            <ul class="ced_fruugo_cat_ul ced_fruugo_5lvl"></ul>
+        </div>
 
-    // Get WooCommerce categories and mappings
-    $woo_categories = get_terms(array(
-        'taxonomy' => 'product_cat',
-        'hide_empty' => false
-    ));
-    $current_mappings = $this->settings->get_category_mappings();
-
-    // Include template
-    require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/category-mapping.php';
+        <div class="selected-categories-wrapper">
+            <h3><?php _e('Selected Categories', 'fruugosync'); ?></h3>
+            <div class="selected-categories-list"></div>
+        </div>
+    </div>
+    <?php
 }
 
     /**
