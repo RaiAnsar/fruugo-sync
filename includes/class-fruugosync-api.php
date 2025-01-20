@@ -93,28 +93,36 @@ public function clear_cache() {
  */
 public function get_categories($force_refresh = false) {
     try {
-        // Debug path
-        $json_file = FRUUGOSYNC_PATH . '/data/json/category.json';  // Added leading slash
-        error_log('Attempting to load categories from: ' . $json_file);
+        // Build file path
+        $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
+        error_log('Full path to category file: ' . $json_file);
 
-        // First check if file exists
-        if (!file_exists($json_file)) {
-            // Try alternate path
-            $json_file = dirname(FRUUGOSYNC_PATH) . '/fruugo-sync/data/json/category.json';
-            error_log('Trying alternate path: ' . $json_file);
-            
-            if (!file_exists($json_file)) {
-                throw new Exception('Category file not found at: ' . $json_file);
-            }
+        // Debug file existence and permissions
+        error_log('File exists check: ' . (file_exists($json_file) ? 'YES' : 'NO'));
+        error_log('Is readable check: ' . (is_readable($json_file) ? 'YES' : 'NO'));
+        if (file_exists($json_file)) {
+            error_log('File permissions: ' . substr(sprintf('%o', fileperms($json_file)), -4));
         }
 
-        // Read and parse the file
-        $categories = json_decode(file_get_contents($json_file), true);
+        if (!file_exists($json_file)) {
+            throw new Exception('Category file not found at: ' . $json_file);
+        }
+
+        $json_content = file_get_contents($json_file);
+        if ($json_content === false) {
+            error_log('Failed to read file contents');
+            throw new Exception('Unable to read category file');
+        }
+
+        error_log('File contents length: ' . strlen($json_content));
+        error_log('First 100 chars: ' . substr($json_content, 0, 100));
+
+        $categories = json_decode($json_content, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log('JSON decode error: ' . json_last_error_msg());
             throw new Exception('Invalid JSON in category file');
         }
 
-        // Get unique level1 categories
         $level1_categories = array();
         foreach ($categories as $category) {
             if (!empty($category['level1'])) {
@@ -122,6 +130,8 @@ public function get_categories($force_refresh = false) {
             }
         }
         $level1_categories = array_values(array_unique($level1_categories));
+
+        error_log('Found ' . count($level1_categories) . ' level 1 categories');
 
         return array(
             'success' => true,
