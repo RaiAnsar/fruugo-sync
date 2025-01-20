@@ -163,3 +163,58 @@
     background: #f9f9f9;
     border: 1px solid #ddd;
 }
+
+.category-tree-container {
+    margin-top: 20px;
+}
+
+.ced_fruugo_cat_ul {
+    margin: 0 0 0 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.ced_fruugo_cat_ul li {
+    margin: 5px 0;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+}
+
+.category-checkbox {
+    margin-right: 10px !important;
+}
+
+.category-name {
+    margin-right: 10px;
+}
+
+.expand-category {
+    cursor: pointer;
+    padding: 2px 6px;
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+.expand-category .spinner {
+    float: none;
+    margin: 0;
+    visibility: hidden;
+}
+
+.expand-category.loading .spinner {
+    visibility: visible;
+}
+
+.selected-categories-list {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+}
+
+.mapping-item {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+}

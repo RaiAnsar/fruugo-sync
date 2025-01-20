@@ -1,160 +1,54 @@
-// jQuery(document).ready(function($) {
-//     // Helper function to show notices
-//     function showNotice(type, message) {
-//         const $notice = $('<div>')
-//             .addClass('notice notice-' + type + ' is-dismissible')
-//             .append($('<p>').text(message));
-            
-//         $('.wrap > h1').after($notice);
-        
-//         // Auto dismiss after 3 seconds
-//         setTimeout(function() {
-//             $notice.fadeOut(function() {
-//                 $(this).remove();
-//             });
-//         }, 3000);
-//     }
-
-//     // Test Connection Handler
-//     $('#test-connection').on('click', function() {
-//         const $button = $(this);
-//         const $status = $('#api-status-indicator');
-        
-//         if ($button.hasClass('loading')) return;
-        
-//         $button.addClass('loading').prop('disabled', true)
-//                .text('Testing Connection...');
-        
-//         $.ajax({
-//             url: fruugosync_ajax.ajax_url,
-//             type: 'POST',
-//             data: {
-//                 action: 'test_fruugo_connection',
-//                 nonce: fruugosync_ajax.nonce
-//             },
-//             success: function(response) {
-//                 $status.removeClass('connected disconnected');
-                
-//                 if (response.success) {
-//                     $status.addClass('connected')
-//                            .html('<span class="status-icon"></span>' +
-//                                 '<span class="status-text">Connected</span>');
-//                     showNotice('success', 'Successfully connected to Fruugo API');
-//                 } else {
-//                     $status.addClass('disconnected')
-//                            .html('<span class="status-icon"></span>' +
-//                                 '<span class="status-text">Not Connected</span>' +
-//                                 '<p class="error-message">' + response.data + '</p>');
-//                     showNotice('error', 'Connection failed: ' + response.data);
-//                 }
-//             },
-//             error: function(xhr, status, error) {
-//                 $status.removeClass('connected')
-//                        .addClass('disconnected')
-//                        .html('<span class="status-icon"></span>' +
-//                             '<span class="status-text">Not Connected</span>' +
-//                             '<p class="error-message">Connection failed: ' + error + '</p>');
-//                 showNotice('error', 'Connection failed: ' + error);
-//             },
-//             complete: function() {
-//                 $button.removeClass('loading')
-//                        .prop('disabled', false)
-//                        .text('Test Connection');
-//             }
-//         });
-//     });
-
-//     // Refresh Categories Handler
-//     $('#refresh-categories').on('click', function() {
-//         const $button = $(this);
-        
-//         if ($button.hasClass('loading')) return;
-        
-//         $button.addClass('loading').prop('disabled', true)
-//                .text('Refreshing Categories...');
-        
-//         $.ajax({
-//             url: fruugosync_ajax.ajax_url,
-//             type: 'POST',
-//             data: {
-//                 action: 'refresh_fruugo_categories',
-//                 nonce: fruugosync_ajax.nonce
-//             },
-//             success: function(response) {
-//                 if (response.success) {
-//                     location.reload(); // Reload to show updated categories
-//                 } else {
-//                     showNotice('error', 'Failed to refresh categories: ' + response.data);
-//                 }
-//             },
-//             error: function(xhr, status, error) {
-//                 showNotice('error', 'Failed to refresh categories: ' + error);
-//             },
-//             complete: function() {
-//                 $button.removeClass('loading')
-//                        .prop('disabled', false)
-//                        .text('Refresh Fruugo Categories');
-//             }
-//         });
-//     });
-
-//     // Category Mapping Form Handler
-//     $('#category-mapping-form').on('submit', function(e) {
-//         e.preventDefault();
-        
-//         const $form = $(this);
-//         const $submitButton = $form.find('button[type="submit"]');
-        
-//         if ($submitButton.hasClass('loading')) return;
-        
-//         $submitButton.addClass('loading').prop('disabled', true)
-//                     .text('Saving Mappings...');
-
-//         const mappings = {};
-//         $form.find('select[name^="category_mapping"]').each(function() {
-//             const $select = $(this);
-//             const categoryId = $select.attr('name').match(/\[(\d+)\]/)[1];
-//             mappings[categoryId] = $select.val();
-//         });
-
-//         $.ajax({
-//             url: fruugosync_ajax.ajax_url,
-//             type: 'POST',
-//             data: {
-//                 action: 'save_category_mapping',
-//                 nonce: fruugosync_ajax.nonce,
-//                 mappings: mappings
-//             },
-//             success: function(response) {
-//                 if (response.success) {
-//                     showNotice('success', 'Category mappings saved successfully');
-//                 } else {
-//                     showNotice('error', 'Failed to save mappings: ' + response.data);
-//                 }
-//             },
-//             error: function(xhr, status, error) {
-//                 showNotice('error', 'Failed to save mappings: ' + error);
-//             },
-//             complete: function() {
-//                 $submitButton.removeClass('loading')
-//                             .prop('disabled', false)
-//                             .text('Save Mappings');
-//             }
-//         });
-//     });
-
-//     // Initialize select2 for category dropdowns if available
-//     if ($.fn.select2) {
-//         $('.fruugo-category-select').select2({
-//             width: '100%',
-//             placeholder: 'Select Fruugo Category'
-//         });
-//     }
-// });
-
 jQuery(document).ready(function($) {
+    // Test connection functionality
+    $('#test-connection').on('click', function() {
+        var button = $(this);
+        var originalText = button.text();
+        
+        button.prop('disabled', true).text('Testing...');
+        $('.api-status-wrapper .spinner').addClass('is-active');
+
+        $.ajax({
+            url: fruugosync_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'test_fruugo_connection',
+                nonce: fruugosync_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $('#api-status-indicator')
+                        .removeClass('unknown disconnected')
+                        .addClass('connected')
+                        .find('.status-text')
+                        .text('Connected');
+                    
+                    $('.error-message').hide();
+                } else {
+                    $('#api-status-indicator')
+                        .removeClass('unknown connected')
+                        .addClass('disconnected')
+                        .find('.status-text')
+                        .text('Not Connected');
+                    
+                    $('.error-message').show().text(response.data.message);
+                }
+            },
+            error: function() {
+                $('#api-status-indicator')
+                    .removeClass('unknown connected')
+                    .addClass('disconnected')
+                    .find('.status-text')
+                    .text('Connection Failed');
+            },
+            complete: function() {
+                button.prop('disabled', false).text(originalText);
+                $('.api-status-wrapper .spinner').removeClass('is-active');
+            }
+        });
+    });
+
     // Category management
-    var fruugoCategories = {
+    var categoryManager = {
         init: function() {
             this.bindEvents();
             this.loadCategories();
@@ -162,130 +56,166 @@ jQuery(document).ready(function($) {
 
         bindEvents: function() {
             $('#refresh-categories').on('click', this.refreshCategories.bind(this));
-            $('.category-tree-container').on('click', '.category-item', this.toggleCategory.bind(this));
-            $('.category-tree-container').on('click', '.expand-category', this.expandCategory.bind(this));
+            $('.category-tree-container').on('click', '.expand-category', this.loadSubcategories.bind(this));
+            $('.category-tree-container').on('click', '.category-checkbox', this.handleCategorySelection.bind(this));
         },
 
         loadCategories: function() {
-            try {
-                $('.loading-indicator').show();
-                $('#category-error').hide();
+            $('.loading-indicator').show();
+            $('#category-error').hide();
 
-                $.ajax({
-                    url: fruugosync_ajax.ajax_url,
-                    type: 'POST',
-                    data: {
-                        action: 'refresh_fruugo_categories',
-                        nonce: fruugosync_ajax.nonce
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            this.renderCategories(response.data.categories);
-                        } else {
-                            this.showError(response.data.message || 'Failed to load categories');
-                        }
-                    }.bind(this),
-                    error: function(xhr, status, error) {
-                        this.showError('Error loading categories: ' + error);
-                    }.bind(this),
-                    complete: function() {
-                        $('.loading-indicator').hide();
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'refresh_fruugo_categories',
+                    nonce: fruugosync_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        this.renderCategories(response.data.level1_categories);
+                        this.loadSavedMappings();
+                    } else {
+                        $('#category-error').show().find('p').text(response.data.message);
                     }
-                });
-            } catch (error) {
-                console.error('Error in loadCategories:', error);
-                this.showError('An unexpected error occurred while loading categories');
-                $('.loading-indicator').hide();
-            }
+                }.bind(this),
+                error: function() {
+                    $('#category-error').show().find('p').text('Failed to load categories');
+                }.bind(this),
+                complete: function() {
+                    $('.loading-indicator').hide();
+                }
+            });
         },
 
         refreshCategories: function(e) {
             e.preventDefault();
-            try {
-                var button = $(e.target);
-                button.prop('disabled', true);
-                $('.loading-indicator').show();
-                $('#category-error').hide();
+            this.loadCategories();
+        },
 
-                $.ajax({
-                    url: fruugosync_ajax.ajax_url,
-                    type: 'POST',
-                    data: {
-                        action: 'refresh_fruugo_categories',
-                        nonce: fruugosync_ajax.nonce,
-                        force_refresh: true
-                    },
-                    timeout: 60000, // 60 second timeout
-                    success: function(response) {
-                        if (response.success) {
-                            this.renderCategories(response.data.categories);
-                        } else {
-                            this.showError(response.data.message || 'Failed to refresh categories');
-                        }
-                    }.bind(this),
-                    error: function(xhr, status, error) {
-                        if (status === 'timeout') {
-                            this.showError('Request timed out. Please try again.');
-                        } else {
-                            this.showError('Error refreshing categories: ' + error);
-                        }
-                    }.bind(this),
-                    complete: function() {
-                        button.prop('disabled', false);
-                        $('.loading-indicator').hide();
+        loadSubcategories: function(e) {
+            var $button = $(e.currentTarget);
+            var $parent = $button.closest('li');
+            var level = parseInt($parent.data('level')) + 1;
+            var categoryName = $parent.data('category');
+
+            if ($button.hasClass('loading')) return;
+
+            $button.addClass('loading').find('.spinner').addClass('is-active');
+
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'get_fruugo_subcategories',
+                    nonce: fruugosync_ajax.nonce,
+                    parent: categoryName,
+                    level: level
+                },
+                success: function(response) {
+                    if (response.success) {
+                        this.renderSubcategories(response.data.categories, level, $parent);
                     }
-                });
-            } catch (error) {
-                console.error('Error in refreshCategories:', error);
-                this.showError('An unexpected error occurred while refreshing categories');
-                button.prop('disabled', false);
-                $('.loading-indicator').hide();
-            }
+                }.bind(this),
+                complete: function() {
+                    $button.removeClass('loading').find('.spinner').removeClass('is-active');
+                }
+            });
         },
 
         renderCategories: function(categories) {
-            try {
-                var container = $('.ced_fruugo_1lvl');
-                container.empty();
-
-                if (!categories || !categories.length) {
-                    this.showError('No categories available');
-                    return;
-                }
-
-                categories.forEach(function(category) {
-                    var item = $('<li>', {
-                        class: 'category-item'
-                    });
-
-                    var label = $('<label>', {
-                        text: category.name
-                    });
-
-                    if (category.children && category.children.length) {
-                        var expandButton = $('<span>', {
-                            class: 'expand-category dashicons dashicons-arrow-right-alt2',
-                            'data-category-id': category.id
-                        });
-                        item.append(expandButton);
-                    }
-
-                    item.append(label);
-                    container.append(item);
-                });
-            } catch (error) {
-                console.error('Error in renderCategories:', error);
-                this.showError('Error rendering categories');
+            var $container = $('.ced_fruugo_1lvl').empty();
+            
+            if (!categories || !categories.length) {
+                $('#category-error').show().find('p').text('No categories available');
+                return;
             }
+
+            categories.forEach(function(category) {
+                var $item = $('<li>', {
+                    'data-category': category,
+                    'data-level': 1
+                }).appendTo($container);
+
+                $('<input>', {
+                    type: 'checkbox',
+                    class: 'category-checkbox',
+                    'data-category': category
+                }).appendTo($item);
+
+                $('<span>', {
+                    text: category,
+                    class: 'category-name'
+                }).appendTo($item);
+
+                $('<button>', {
+                    class: 'expand-category',
+                    html: '<span class="spinner"></span>'
+                }).appendTo($item);
+            });
         },
 
-        showError: function(message) {
-            var errorDiv = $('#category-error');
-            errorDiv.find('p').text(message);
-            errorDiv.show();
+        renderSubcategories: function(categories, level, $parent) {
+            var $container = $('.ced_fruugo_' + level + 'lvl');
+            $container.empty();
+
+            if (!categories || !categories.length) return;
+
+            categories.forEach(function(category) {
+                var $item = $('<li>', {
+                    'data-category': category,
+                    'data-level': level,
+                    'data-parent': $parent.data('category')
+                }).appendTo($container);
+
+                $('<input>', {
+                    type: 'checkbox',
+                    class: 'category-checkbox',
+                    'data-category': category
+                }).appendTo($item);
+
+                $('<span>', {
+                    text: category,
+                    class: 'category-name'
+                }).appendTo($item);
+
+                $('<button>', {
+                    class: 'expand-category',
+                    html: '<span class="spinner"></span>'
+                }).appendTo($item);
+            });
+        },
+
+        loadSavedMappings: function() {
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'get_category_mappings',
+                    nonce: fruugosync_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success && response.data.mappings) {
+                        this.displaySavedMappings(response.data.mappings);
+                    }
+                }.bind(this)
+            });
+        },
+
+        displaySavedMappings: function(mappings) {
+            var $container = $('.selected-categories-list');
+            $container.empty();
+
+            Object.keys(mappings).forEach(function(wooCategory) {
+                var fruugoCategory = mappings[wooCategory];
+                $('<div>', {
+                    class: 'mapping-item',
+                    text: wooCategory + ' → ' + fruugoCategory
+                }).appendTo($container);
+            });
         }
     };
 
-    // Initialize category management
-    fruugoCategories.init();
+    // Initialize both functionalities
+    categoryManager.init();
 });
