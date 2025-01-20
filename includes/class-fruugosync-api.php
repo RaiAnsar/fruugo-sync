@@ -79,6 +79,9 @@ public function clear_cache() {
 /**
  * Get Fruugo categories and cache them
  */
+/**
+ * Get Fruugo categories from local JSON
+ */
 public function get_categories($force_refresh = false) {
     // Check cache first
     $cached_categories = get_transient('fruugosync_categories');
@@ -89,48 +92,10 @@ public function get_categories($force_refresh = false) {
         );
     }
 
-    // Make request with increased timeout
-    $url = $this->api_urls['v3_base'] . 'categories';
-    
-    $request_args = array(
-        'method' => 'GET',
-        'timeout' => 120, // Increased timeout
-        'headers' => array(
-            'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
-            'Content-Type' => 'application/json',
-            'Accept' => 'application/json',
-            'X-Correlation-ID' => 'fruugosync_' . uniqid()
-        ),
-        'sslverify' => false
-    );
-
-    // Log request if debug mode
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('FruugoSync Categories Request: ' . $url);
-        error_log('Request Args: ' . print_r($request_args, true));
-    }
-
-    $response = wp_remote_request($url, $request_args);
-
-    if (is_wp_error($response)) {
-        return array(
-            'success' => false,
-            'message' => $response->get_error_message()
-        );
-    }
-
-    $response_code = wp_remote_retrieve_response_code($response);
-    $response_body = wp_remote_retrieve_body($response);
-
-    if ($response_code === 429) {
-        return array(
-            'success' => false,
-            'message' => 'Rate limit exceeded'
-        );
-    }
-
-    if ($response_code >= 200 && $response_code < 300) {
-        $categories = json_decode($response_body, true);
+    // Load from local JSON file
+    $json_file = FRUUGOSYNC_PATH . 'data/categories.json';
+    if (file_exists($json_file)) {
+        $categories = json_decode(file_get_contents($json_file), true);
         if ($categories) {
             // Cache the results
             set_transient('fruugosync_categories', $categories, DAY_IN_SECONDS);
@@ -142,10 +107,27 @@ public function get_categories($force_refresh = false) {
         }
     }
 
-    return array(
-        'success' => false,
-        'message' => "HTTP Error $response_code: " . wp_remote_retrieve_response_message($response)
-    );
+    // If no local file, attempt API call with short timeout
+    return $this->make_request('categories', 'GET', null, array(
+        'timeout' => 30,
+        'headers' => array(
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json'
+        )
+    ));
+}
+/**
+ * Update local categories file
+ */
+private function update_local_categories($categories) {
+    $json_file = FRUUGOSYNC_PATH . 'data/categories.json';
+    $json_dir = dirname($json_file);
+    
+    if (!file_exists($json_dir)) {
+        wp_mkdir_p($json_dir);
+    }
+    
+    return file_put_contents($json_file, wp_json_encode($categories, JSON_PRETTY_PRINT));
 }
 
     /**

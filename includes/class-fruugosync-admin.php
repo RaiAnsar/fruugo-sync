@@ -319,9 +319,12 @@ public function render_category_mapping_page() {
                 'message' => __('Unauthorized', 'fruugosync')
             ));
         }
-
-        $this->api->clear_cache();
-        $result = $this->api->get_categories();
+    
+        // Clear cache
+        delete_transient('fruugosync_categories');
+    
+        // Load from local file first
+        $result = $this->api->get_categories(true);
         
         if ($result['success']) {
             wp_send_json_success(array(
@@ -330,7 +333,8 @@ public function render_category_mapping_page() {
             ));
         } else {
             wp_send_json_error(array(
-                'message' => $result['message']
+                'message' => is_string($result['message']) ? 
+                    $result['message'] : __('Failed to refresh categories', 'fruugosync')
             ));
         }
     }
