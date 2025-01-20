@@ -92,35 +92,40 @@ public function clear_cache() {
  * Get Fruugo categories
  */
 public function get_categories($force_refresh = false) {
-    $file_path = '/home/mediatronixs/htdocs/mediatronixs.com/wp-content/plugins/fruugo-sync/data/json/category.json';
-    error_log("Getting categories from: " . $file_path);
-    
-    if (!file_exists($file_path)) {
-        error_log("File does not exist at: " . $file_path);
+    // Get absolute path to the file
+    $file_path = realpath(FRUUGOSYNC_PATH . 'data/json/category.json');
+    error_log("Absolute path to category file: " . $file_path);
+
+    // Verify the file exists and is readable
+    if (!$file_path || !is_readable($file_path)) {
+        error_log("File not found or not readable at: " . FRUUGOSYNC_PATH . 'data/json/category.json');
         return array(
             'success' => false,
-            'message' => 'Category file not found'
+            'message' => 'Category file not found or not readable'
         );
     }
 
+    // Read the file contents
     $content = file_get_contents($file_path);
     if ($content === false) {
-        error_log("Could not read file");
+        error_log("Failed to read category file");
         return array(
             'success' => false,
-            'message' => 'Could not read category file'
+            'message' => 'Failed to read category file'
         );
     }
 
+    // Parse JSON
     $categories = json_decode($content, true);
     if (!$categories) {
-        error_log("Could not parse JSON");
+        error_log("Failed to parse JSON from category file");
         return array(
             'success' => false,
             'message' => 'Invalid category data'
         );
     }
 
+    // Extract level1 categories
     $level1_cats = array();
     foreach ($categories as $cat) {
         if (!empty($cat['level1'])) {
@@ -128,8 +133,6 @@ public function get_categories($force_refresh = false) {
         }
     }
     $level1_cats = array_unique($level1_cats);
-
-    error_log("Found categories: " . print_r($level1_cats, true));
 
     return array(
         'success' => true,
