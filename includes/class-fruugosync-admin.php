@@ -185,8 +185,34 @@ public function enqueue_admin_assets($hook) {
      * Render category mapping page
      */
 /**
- * Render category mapping page
+ * get woocommerce categories
  */
+private function get_woocommerce_categories() {
+    $args = array(
+        'taxonomy'   => 'product_cat',
+        'hide_empty' => false, // Show all categories, including those without products
+    );
+
+    $categories = get_terms($args);
+
+    if (is_wp_error($categories)) {
+        return [];
+    }
+
+    $formatted_categories = [];
+
+    foreach ($categories as $category) {
+        $formatted_categories[] = [
+            'id'   => $category->term_id,
+            'name' => $category->name,
+            'slug' => $category->slug,
+        ];
+    }
+
+    return $formatted_categories;
+}
+
+
 /**
  * Render category mapping page
  */
@@ -195,8 +221,9 @@ public function render_category_mapping_page() {
         return;
     }
 
+    // Fetch WooCommerce categories
+    $woocommerce_categories = $this->get_woocommerce_categories(); // Add this function
     $categories = $this->api->get_categories();
-    error_log("Categories response: " . print_r($categories, true));
 
     if (!$categories['success']) {
         echo '<div class="notice notice-error"><p>';
@@ -205,9 +232,8 @@ public function render_category_mapping_page() {
         return;
     }
 
-    // Get root categories
+    // Get root categories from Fruugo API
     $root_categories = $categories['data'];
-    error_log("Root categories: " . print_r($root_categories, true));
 
     ?>
     <div class="wrap">
@@ -221,62 +247,49 @@ public function render_category_mapping_page() {
             <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
         </button>
 
-        <h2><?php _e('Root Categories', 'fruugosync'); ?></h2>
-        
-        <div class="wrap">
-    <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+        <h2><?php _e('Category Mapping', 'fruugosync'); ?></h2>
 
-    <div class="notice notice-info">
-        <p><?php _e('Map your WooCommerce categories to Fruugo categories.', 'fruugosync'); ?></p>
-    </div>
-
-    <button type="button" id="refresh-categories" class="button">
-        <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
-    </button>
-
-    <h2><?php _e('Category Mapping', 'fruugosync'); ?></h2>
-
-    <table class="category-mapping-table">
-        <thead>
-            <tr>
-                <th><?php _e('WooCommerce Category', 'fruugosync'); ?></th>
-                <th><?php _e('Fruugo Category', 'fruugosync'); ?></th>
-                <th><?php _e('Actions', 'fruugosync'); ?></th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($woocommerce_categories as $wc_category): ?>
+        <table class="category-mapping-table">
+            <thead>
                 <tr>
-                    <td><?php echo esc_html($wc_category); ?></td>
-                    <td>
-                        <select class="fruugo-category-dropdown" data-wc-category="<?php echo esc_attr($wc_category); ?>">
-                            <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
-                            <?php foreach ($root_categories as $fruugo_category): ?>
-                                <option value="<?php echo esc_attr($fruugo_category); ?>">
-                                    <?php echo esc_html($fruugo_category); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </td>
-                    <td>
-                        <button type="button" class="button save-mapping" data-wc-category="<?php echo esc_attr($wc_category); ?>">
-                            <?php _e('Save Mapping', 'fruugosync'); ?>
-                        </button>
-                    </td>
+                    <th><?php _e('WooCommerce Category', 'fruugosync'); ?></th>
+                    <th><?php _e('Fruugo Category', 'fruugosync'); ?></th>
+                    <th><?php _e('Actions', 'fruugosync'); ?></th>
                 </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>
-
-
-        <div class="selected-categories-wrapper">
-            <h3><?php _e('Selected Categories', 'fruugosync'); ?></h3>
-            <div class="selected-categories-list"></div>
-        </div>
+            </thead>
+            <tbody>
+                <?php if (!empty($woocommerce_categories)): ?>
+                    <?php foreach ($woocommerce_categories as $wc_category): ?>
+                        <tr>
+                            <td><?php echo esc_html($wc_category['name']); ?></td>
+                            <td>
+                                <select class="fruugo-category-dropdown" data-wc-category="<?php echo esc_attr($wc_category['slug']); ?>">
+                                    <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
+                                    <?php foreach ($root_categories as $fruugo_category): ?>
+                                        <option value="<?php echo esc_attr($fruugo_category); ?>">
+                                            <?php echo esc_html($fruugo_category); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td>
+                                <button type="button" class="button save-mapping" data-wc-category="<?php echo esc_attr($wc_category['slug']); ?>">
+                                    <?php _e('Save Mapping', 'fruugosync'); ?>
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="3"><?php _e('No WooCommerce categories found.', 'fruugosync'); ?></td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
     <?php
 }
+
 
     /**
      * AJAX handler for testing API connection
