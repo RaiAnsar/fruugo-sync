@@ -51,4 +51,36 @@ jQuery(document).ready(function($) {
             }
         });
     });
+
+    $('.profile-select').on('change', function() {
+        var $select = $(this);
+        var $row = $select.closest('tr');
+        var profileName = $select.find('option:selected').text();
+        var categoryId = $select.data('category');
+        
+        if ($select.val()) {
+            $row.find('.selected-profile').text(profileName);
+            $row.find('.progress-fill').css('width', '100%');
+            
+            // Save mapping via AJAX
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'save_category_profile_mapping',
+                    nonce: fruugosync_ajax.nonce,
+                    category_id: categoryId,
+                    profile_id: $select.val()
+                },
+                success: function(response) {
+                    if (!response.success) {
+                        alert('Error saving mapping: ' + response.data.message);
+                    }
+                }
+            });
+        } else {
+            $row.find('.selected-profile').text('Profile Not selected');
+            $row.find('.progress-fill').css('width', '0');
+        }
+    });
 });
