@@ -186,12 +186,12 @@ class FruugoSync_Admin {
     }
 
 /*temporary code */
-    error_log('Category file path: ' . FRUUGOSYNC_PATH . 'data/json/category.json');
-error_log('File exists: ' . (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json') ? 'yes' : 'no'));
-if (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json')) {
-    error_log('File permissions: ' . decoct(fileperms(FRUUGOSYNC_PATH . 'data/json/category.json') & 0777));
-    error_log('File content: ' . substr(file_get_contents(FRUUGOSYNC_PATH . 'data/json/category.json'), 0, 500));
-}
+//     error_log('Category file path: ' . FRUUGOSYNC_PATH . 'data/json/category.json');
+// error_log('File exists: ' . (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json') ? 'yes' : 'no'));
+// if (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json')) {
+//     error_log('File permissions: ' . decoct(fileperms(FRUUGOSYNC_PATH . 'data/json/category.json') & 0777));
+//     error_log('File content: ' . substr(file_get_contents(FRUUGOSYNC_PATH . 'data/json/category.json'), 0, 500));
+// }
 
     /**
      * Render category mapping page
