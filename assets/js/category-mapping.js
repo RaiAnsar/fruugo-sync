@@ -1,30 +1,56 @@
-jQuery(document).ready(function($) {
+jQuery(document).ready(function ($) {
     // Save category mapping
-    $('.fruugo-category-dropdown').on('change', function() {
-        var wcCategory = $(this).closest('tr').find('td:first').text();
-        var fruugoCategory = $(this).val();
+    $('.save-mapping').on('click', function () {
+        var wcCategory = $(this).data('wc-category');
+        var fruugoCategory = $(this).closest('tr').find('.fruugo-category-dropdown').val();
 
-        if (fruugoCategory) {
-            $.ajax({
-                url: fruugosync_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'save_category_mapping',
-                    wc_category: wcCategory,
-                    fruugo_category: fruugoCategory,
-                    nonce: fruugosync_ajax.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        alert('Category mapping saved successfully!');
-                    } else {
-                        alert('Failed to save category mapping.');
-                    }
-                },
-                error: function() {
-                    alert('Error occurred while saving mapping.');
-                }
-            });
+        if (!fruugoCategory) {
+            alert('Please select a Fruugo category.');
+            return;
         }
+
+        $.ajax({
+            url: fruugosync_ajax.ajax_url,
+            method: 'POST',
+            data: {
+                action: 'save_category_mapping',
+                wc_category: wcCategory,
+                fruugo_category: fruugoCategory,
+                nonce: fruugosync_ajax.nonce
+            },
+            success: function (response) {
+                if (response.success) {
+                    alert('Mapping saved successfully.');
+                } else {
+                    alert('Failed to save mapping: ' + response.data.message);
+                }
+            },
+            error: function () {
+                alert('An error occurred while saving the mapping.');
+            }
+        });
+    });
+
+    // Refresh Fruugo categories
+    $('#refresh-categories').on('click', function () {
+        $.ajax({
+            url: fruugosync_ajax.ajax_url,
+            method: 'POST',
+            data: {
+                action: 'refresh_fruugo_categories',
+                nonce: fruugosync_ajax.nonce
+            },
+            success: function (response) {
+                if (response.success) {
+                    alert('Fruugo categories refreshed successfully.');
+                    // Reload or update the dropdown dynamically
+                } else {
+                    alert('Failed to refresh categories: ' + response.data.message);
+                }
+            },
+            error: function () {
+                alert('An error occurred while refreshing categories.');
+            }
+        });
     });
 });

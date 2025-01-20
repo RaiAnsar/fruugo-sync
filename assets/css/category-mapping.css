@@ -1,3 +1,8 @@
+.wrap {
+    margin: 20px;
+    font-family: Arial, sans-serif;
+}
+
 .category-mapping-table {
     width: 100%;
     border-collapse: collapse;
@@ -5,14 +10,15 @@
     background: #fff;
 }
 
-.category-mapping-table th, .category-mapping-table td {
-    padding: 10px;
+.category-mapping-table th,
+.category-mapping-table td {
     border: 1px solid #ddd;
+    padding: 10px;
     text-align: left;
 }
 
 .category-mapping-table th {
-    background: #f1f1f1;
+    background-color: #f4f4f4;
     font-weight: bold;
 }
 
@@ -21,4 +27,17 @@
     padding: 5px;
     border: 1px solid #ddd;
     border-radius: 4px;
+}
+
+.save-mapping {
+    background-color: #0073aa;
+    border: none;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.save-mapping:hover {
+    background-color: #005177;
 }
