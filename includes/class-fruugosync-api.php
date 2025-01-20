@@ -33,13 +33,29 @@ class FruugoSync_API {
     /**
      * Initialize API credentials
      */
-    private function init_credentials() {
-        $saved_details = get_option('ced_fruugo_details', array());
-        $this->credentials = array(
-            'username' => isset($saved_details['userString']) ? $saved_details['userString'] : '',
-            'password' => isset($saved_details['passString']) ? $saved_details['passString'] : ''
-        );
-    }
+    // private function init_credentials() {
+    //     $saved_details = get_option('ced_fruugo_details', array());
+    //     $this->credentials = array(
+    //         'username' => isset($saved_details['userString']) ? $saved_details['userString'] : '',
+    //         'password' => isset($saved_details['passString']) ? $saved_details['passString'] : ''
+    //     );
+    // }
+
+    /**
+ * Initialize API credentials
+ */
+private function init_credentials() {
+    $this->credentials = array(
+        'username' => get_option('fruugosync_username', ''),
+        'password' => get_option('fruugosync_password', '')
+    );
+}
+/**
+ * Get current credentials
+ */
+public function get_credentials() {
+    return $this->credentials;
+}
 
     /**
      * Test API connection

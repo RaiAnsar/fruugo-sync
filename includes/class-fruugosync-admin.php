@@ -171,12 +171,27 @@ class FruugoSync_Admin {
 /**
  * Render category mapping page
  */
+/**
+ * Render category mapping page
+ */
 public function render_category_mapping_page() {
     if (!current_user_can('manage_options')) {
         return;
     }
 
-    // Check API connection first
+    // First check if credentials are configured
+    $credentials = $this->api->get_credentials();
+    if (empty($credentials['username']) || empty($credentials['password'])) {
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
+        echo '<div class="notice notice-error"><p>' . 
+             __('Please configure and test your API connection before mapping categories.', 'fruugosync') . 
+             '</p></div>';
+        echo '</div>';
+        return;
+    }
+
+    // Check API connection status
     $api_status = $this->settings->get('fruugosync_api_status');
     if (!is_array($api_status)) {
         $api_status = array(
@@ -186,12 +201,17 @@ public function render_category_mapping_page() {
     }
 
     if ($api_status['status'] !== 'connected') {
-        ?>
-        <div class="notice notice-error">
-            <p><?php _e('Please configure and test your API connection before mapping categories.', 'fruugosync'); ?></p>
-        </div>
-        <?php
-        return;
+        // Test connection again just to be sure
+        $test_result = $this->api->test_connection();
+        if (!$test_result['success']) {
+            echo '<div class="wrap">';
+            echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
+            echo '<div class="notice notice-error"><p>' . 
+                 __('Please test your API connection before mapping categories.', 'fruugosync') . 
+                 '</p></div>';
+            echo '</div>';
+            return;
+        }
     }
 
     // Get WooCommerce categories
