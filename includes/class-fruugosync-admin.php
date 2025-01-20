@@ -216,39 +216,38 @@ private function get_woocommerce_categories() {
 /**
  * Render category mapping page
  */
-public function render_category_mapping_page() {
-    if (!current_user_can('manage_options')) {
-        return;
-    }
 
+private function render_hierarchical_categories($categories, $level = 0) {
+    $html = '';
+    foreach ($categories as $category) {
+        $indentation = str_repeat('&nbsp;&nbsp;&nbsp;', $level); // Indentation for subcategories
+        $html .= '<option value="' . esc_attr($category['id']) . '">' .
+            $indentation . esc_html($category['name']) . '</option>';
+
+        if (!empty($category['children'])) {
+            $html .= $this->render_hierarchical_categories($category['children'], $level + 1);
+        }
+    }
+    return $html;
+}
+
+public function render_category_mapping_page() {
     // Fetch WooCommerce categories
-    $woocommerce_categories = $this->get_woocommerce_categories(); // Add this function
-    $categories = $this->api->get_categories();
+    $woocommerce_categories = $this->get_woocommerce_categories();
+    $categories = $this->api->get_categories(); // Fruugo categories
 
     if (!$categories['success']) {
-        echo '<div class="notice notice-error"><p>';
-        echo esc_html($categories['message']);
-        echo '</p></div>';
+        echo '<div class="notice notice-error"><p>' . esc_html($categories['message']) . '</p></div>';
         return;
     }
 
-    // Get root categories from Fruugo API
-    $root_categories = $categories['data'];
-
+    // Render the category mapping table
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-
         <div class="notice notice-info">
             <p><?php _e('Map your WooCommerce categories to Fruugo categories.', 'fruugosync'); ?></p>
         </div>
-
-        <button type="button" id="refresh-categories" class="button">
-            <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
-        </button>
-
-        <h2><?php _e('Category Mapping', 'fruugosync'); ?></h2>
-
         <table class="category-mapping-table">
             <thead>
                 <tr>
@@ -265,11 +264,7 @@ public function render_category_mapping_page() {
                             <td>
                                 <select class="fruugo-category-dropdown" data-wc-category="<?php echo esc_attr($wc_category['slug']); ?>">
                                     <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
-                                    <?php foreach ($root_categories as $fruugo_category): ?>
-                                        <option value="<?php echo esc_attr($fruugo_category); ?>">
-                                            <?php echo esc_html($fruugo_category); ?>
-                                        </option>
-                                    <?php endforeach; ?>
+                                    <?php echo $this->render_hierarchical_categories($categories['data']); ?>
                                 </select>
                             </td>
                             <td>
@@ -289,6 +284,8 @@ public function render_category_mapping_page() {
     </div>
     <?php
 }
+
+
 
 
     /**
@@ -414,22 +411,26 @@ public function render_category_mapping_page() {
         check_ajax_referer('fruugosync-ajax-nonce', 'nonce');
     
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Unauthorized']);
+            wp_send_json_error(['message' => __('Unauthorized', 'fruugosync')]);
         }
     
-        $wc_category = sanitize_text_field($_POST['wc_category']);
-        $fruugo_category = sanitize_text_field($_POST['fruugo_category']);
+        $wc_category = isset($_POST['wc_category']) ? sanitize_text_field($_POST['wc_category']) : '';
+        $fruugo_category = isset($_POST['fruugo_category']) ? sanitize_text_field($_POST['fruugo_category']) : '';
     
         if (empty($wc_category) || empty($fruugo_category)) {
-            wp_send_json_error(['message' => 'Invalid data provided.']);
+            wp_send_json_error(['message' => __('Invalid data provided.', 'fruugosync')]);
         }
     
-        // Save mapping to the database
+        // Save the mapping in the database (example using options)
         $mappings = get_option('fruugosync_category_mappings', []);
         $mappings[$wc_category] = $fruugo_category;
-        update_option('fruugosync_category_mappings', $mappings);
     
-        wp_send_json_success(['message' => 'Mapping saved successfully.']);
+        if (update_option('fruugosync_category_mappings', $mappings)) {
+            wp_send_json_success(['message' => __('Mapping saved successfully.', 'fruugosync')]);
+        } else {
+            wp_send_json_error(['message' => __('Failed to save mapping.', 'fruugosync')]);
+        }
     }
+    
     
 }
