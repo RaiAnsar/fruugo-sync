@@ -188,10 +188,10 @@ public function enqueue_admin_assets($hook) {
  * get woocommerce categories
  */
 private function get_woocommerce_categories() {
-    $args = array(
+    $args = [
         'taxonomy'   => 'product_cat',
-        'hide_empty' => false, // Show all categories, including those without products
-    );
+        'hide_empty' => false,
+    ];
 
     $categories = get_terms($args);
 
@@ -200,7 +200,6 @@ private function get_woocommerce_categories() {
     }
 
     $formatted_categories = [];
-
     foreach ($categories as $category) {
         $formatted_categories[] = [
             'id'   => $category->term_id,
@@ -213,22 +212,21 @@ private function get_woocommerce_categories() {
 }
 
 
+
 /**
  * Render category mapping page
  */
 
  private function render_hierarchical_categories($categories, $level = 0) {
     if (empty($categories) || !is_array($categories)) {
-        return ''; // Safeguard against invalid input
+        return ''; // Return early if the data is not valid
     }
 
     $html = '';
     foreach ($categories as $category) {
         if (is_string($category)) {
-            // If the category is a string (flat structure)
             $html .= '<option value="' . esc_attr($category) . '">' . esc_html($category) . '</option>';
         } elseif (is_array($category) && isset($category['name'])) {
-            // If the category is hierarchical
             $indentation = str_repeat('&nbsp;&nbsp;&nbsp;', $level);
             $html .= '<option value="' . esc_attr($category['id'] ?? $category['name']) . '">' .
                 $indentation . esc_html($category['name']) . '</option>';
@@ -242,10 +240,21 @@ private function get_woocommerce_categories() {
 }
 
 
+
 public function render_category_mapping_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    $woocommerce_categories = $this->get_woocommerce_categories();
+
+    if (empty($woocommerce_categories) || !is_array($woocommerce_categories)) {
+        $woocommerce_categories = []; // Fallback if no categories are found
+    }
+
     $categories = $this->api->get_categories();
 
-    if (!$categories['success']) {
+    if (!$categories['success'] || empty($categories['data'])) {
         echo '<div class="notice notice-error"><p>' . __('Failed to load Fruugo categories.', 'fruugosync') . '</p></div>';
         return;
     }
@@ -275,7 +284,9 @@ public function render_category_mapping_page() {
                             </select>
                         </td>
                         <td>
-                            <button class="button save-mapping">Save Mapping</button>
+                            <button class="button save-mapping" data-wc-category="<?php echo esc_attr($wc_category['slug']); ?>">
+                                <?php _e('Save Mapping', 'fruugosync'); ?>
+                            </button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -284,10 +295,6 @@ public function render_category_mapping_page() {
     </div>
     <?php
 }
-
-
-
-
 
     /**
      * AJAX handler for testing API connection
