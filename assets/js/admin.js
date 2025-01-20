@@ -1,12 +1,50 @@
 jQuery(document).ready(function($) {
-    // Refresh categories handler
+    // Test Connection Handler
+    $('#test-connection').on('click', function() {
+        var button = $(this);
+        button.prop('disabled', true);
+        
+        $.ajax({
+            url: fruugosync_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'test_fruugo_connection',
+                nonce: fruugosync_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $('#api-status-indicator')
+                        .removeClass('unknown disconnected')
+                        .addClass('connected')
+                        .find('.status-text')
+                        .text('Connected');
+                } else {
+                    $('#api-status-indicator')
+                        .removeClass('unknown connected')
+                        .addClass('disconnected')
+                        .find('.status-text')
+                        .text('Not Connected');
+                }
+            },
+            error: function() {
+                $('#api-status-indicator')
+                    .removeClass('unknown connected')
+                    .addClass('disconnected')
+                    .find('.status-text')
+                    .text('Connection Failed');
+            },
+            complete: function() {
+                button.prop('disabled', false);
+            }
+        });
+    });
+
+    // Category Refresh Handler
     $('#refresh-categories').on('click', function(e) {
         e.preventDefault();
         var button = $(this);
-        
-        // Disable button and show loading state
         button.prop('disabled', true);
-        
+
         $.ajax({
             url: fruugosync_ajax.ajax_url,
             type: 'POST',
@@ -15,8 +53,8 @@ jQuery(document).ready(function($) {
                 nonce: fruugosync_ajax.nonce
             },
             success: function(response) {
-                if (response.success) {
-                    renderRootCategories(response.data);
+                if (response.success && response.data.categories) {
+                    renderCategories(response.data.categories);
                 } else {
                     showError(response.data.message || 'Failed to load categories');
                 }
@@ -31,16 +69,12 @@ jQuery(document).ready(function($) {
     });
 
     // Category expansion handler
-    $(document).on('click', '.ced_fruugo_expand_fruugocat', function() {
+    $('.category-tree-container').on('click', '.ced_fruugo_expand_fruugocat', function() {
         var $this = $(this);
         var level = parseInt($this.data('cat-level'));
         var parentCat = $this.data('parent-cat-name');
-        
-        $this.addClass('loading');
-        
-        // Clear any existing subcategories at deeper levels
-        clearSubcategories(level);
-        
+        var catName = $this.data('cat-name');
+
         $.ajax({
             url: fruugosync_ajax.ajax_url,
             type: 'POST',
@@ -48,22 +82,20 @@ jQuery(document).ready(function($) {
                 action: 'get_fruugo_subcategories',
                 nonce: fruugosync_ajax.nonce,
                 parent: parentCat,
-                level: level + 1
+                category: catName,
+                level: level
             },
             success: function(response) {
                 if (response.success) {
-                    renderSubcategories(response.data, level + 1);
+                    renderSubcategories(response.data, level);
                 }
-            },
-            complete: function() {
-                $this.removeClass('loading');
             }
         });
     });
 
-    function renderRootCategories(categories) {
+    function renderCategories(categories) {
         var $container = $('.ced_fruugo_1lvl');
-        $container.empty();
+        $container.find('li').remove(); // Keep the h1 heading
 
         if (!categories || !categories.length) {
             showError('No categories available');
@@ -71,71 +103,48 @@ jQuery(document).ready(function($) {
         }
 
         categories.forEach(function(category) {
-            var $li = $('<li>');
-            var $label = $('<label>', {
-                class: 'ced_fruugo_expand_fruugocat',
-                'data-parent-cat-name': category,
-                'data-cat-level': '1',
-                text: category + ' '
-            });
-            
-            $label.append(
-                $('<img>', {
-                    class: 'ced_fruugo_category_loader',
-                    src: fruugosync_ajax.plugin_url + '/assets/images/loading.gif',
-                    width: 20,
-                    height: 20
-                })
+            $container.append(
+                '<li>' +
+                '<label class="ced_fruugo_expand_fruugocat" ' +
+                'data-parent-cat-name="' + category + '" ' +
+                'data-cat-name="' + category + '" ' +
+                'data-cat-level="1">' +
+                category + '>' +
+                '<img class="ced_fruugo_category_loader" src="' + fruugosync_ajax.plugin_url + 'assets/images/loading.gif" width="20px" height="20px">' +
+                '</label>' +
+                '</li>'
             );
-            
-            $li.append($label);
-            $container.append($li);
         });
-
-        // Clear other levels
-        clearSubcategories(1);
     }
 
     function renderSubcategories(categories, level) {
-        var $container = $('.ced_fruugo_' + level + 'lvl');
+        var $container = $('.ced_fruugo_' + (level + 1) + 'lvl');
         $container.empty();
 
-        categories.forEach(function(category) {
-            var $li = $('<li>');
-            var $label = $('<label>', {
-                class: 'ced_fruugo_expand_fruugocat',
-                'data-parent-cat-name': category,
-                'data-cat-level': level,
-                text: category + ' '
+        if (categories && categories.length) {
+            categories.forEach(function(category) {
+                $container.append(
+                    '<li>' +
+                    '<label class="ced_fruugo_expand_fruugocat" ' +
+                    'data-parent-cat-name="' + category + '" ' +
+                    'data-cat-name="' + category + '" ' +
+                    'data-cat-level="' + (level + 1) + '">' +
+                    category + '>' +
+                    '<img class="ced_fruugo_category_loader" src="' + fruugosync_ajax.plugin_url + 'assets/images/loading.gif" width="20px" height="20px">' +
+                    '</label>' +
+                    '</li>'
+                );
             });
-            
-            $label.append(
-                $('<img>', {
-                    class: 'ced_fruugo_category_loader',
-                    src: fruugosync_ajax.plugin_url + '/assets/images/loading.gif',
-                    width: 20,
-                    height: 20
-                })
-            );
-            
-            $li.append($label);
-            $container.append($li);
-        });
-    }
-
-    function clearSubcategories(fromLevel) {
-        for (var i = fromLevel + 1; i <= 5; i++) {
-            $('.ced_fruugo_' + i + 'lvl').empty();
         }
     }
 
     function showError(message) {
-        var $error = $('<div>', {
-            class: 'notice notice-error',
-            html: $('<p>', { text: message })
-        });
-
-        $('.wrap').find('.notice-error').remove();
-        $('.wrap').prepend($error);
+        var $error = $('<div class="notice notice-error"><p>' + message + '</p></div>');
+        $('.fruugosync-category-mapping').prepend($error);
+        setTimeout(function() {
+            $error.fadeOut(function() {
+                $(this).remove();
+            });
+        }, 5000);
     }
 });
