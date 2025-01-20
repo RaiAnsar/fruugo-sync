@@ -141,7 +141,8 @@ class FruugoSync_Admin {
             if ($test_result['success']) {
                 update_option('fruugosync_api_status', array(
                     'status' => 'connected',
-                    'error' => ''
+                    'error' => '',
+                    'last_check' => time()
                 ));
                 add_settings_error(
                     'fruugosync_messages',
@@ -150,33 +151,33 @@ class FruugoSync_Admin {
                     'success'
                 );
             } else {
-                $error_message = is_string($test_result['message']) ? 
-                    $test_result['message'] : __('Connection failed', 'fruugosync');
-                
                 update_option('fruugosync_api_status', array(
                     'status' => 'disconnected',
-                    'error' => $error_message
+                    'error' => $test_result['message'],
+                    'last_check' => time()
                 ));
-                
                 add_settings_error(
                     'fruugosync_messages',
                     'connection_failed',
-                    sprintf(__('Settings saved but connection failed: %s', 'fruugosync'), $error_message),
+                    sprintf(__('Settings saved but connection failed: %s', 'fruugosync'), $test_result['message']),
                     'error'
                 );
             }
         }
     
-        // Get current settings and status
+        // Get current API status
         $api_status = get_option('fruugosync_api_status', array(
             'status' => 'unknown',
-            'error' => ''
+            'error' => '',
+            'last_check' => 0
         ));
     
+        // Ensure we have array format
         if (!is_array($api_status)) {
             $api_status = array(
                 'status' => 'unknown',
-                'error' => ''
+                'error' => '',
+                'last_check' => 0
             );
         }
     
@@ -237,6 +238,28 @@ public function render_category_mapping_page() {
     /**
      * AJAX handler for testing API connection
      */
+    // public function ajax_test_connection() {
+    //     check_ajax_referer('fruugosync-ajax-nonce', 'nonce');
+        
+    //     if (!current_user_can('manage_options')) {
+    //         wp_send_json_error(array(
+    //             'message' => __('Unauthorized', 'fruugosync')
+    //         ));
+    //     }
+
+    //     $result = $this->api->test_connection();
+        
+    //     if ($result['success']) {
+    //         wp_send_json_success(array(
+    //             'message' => __('Successfully connected to Fruugo API', 'fruugosync')
+    //         ));
+    //     } else {
+    //         wp_send_json_error(array(
+    //             'message' => $result['message']
+    //         ));
+    //     }
+    // }
+
     public function ajax_test_connection() {
         check_ajax_referer('fruugosync-ajax-nonce', 'nonce');
         
@@ -245,14 +268,28 @@ public function render_category_mapping_page() {
                 'message' => __('Unauthorized', 'fruugosync')
             ));
         }
-
+    
         $result = $this->api->test_connection();
         
         if ($result['success']) {
+            // Update API status on successful connection
+            update_option('fruugosync_api_status', array(
+                'status' => 'connected',
+                'error' => '',
+                'last_check' => time()
+            ));
+    
             wp_send_json_success(array(
                 'message' => __('Successfully connected to Fruugo API', 'fruugosync')
             ));
         } else {
+            // Update API status on failed connection
+            update_option('fruugosync_api_status', array(
+                'status' => 'disconnected',
+                'error' => $result['message'],
+                'last_check' => time()
+            ));
+    
             wp_send_json_error(array(
                 'message' => $result['message']
             ));

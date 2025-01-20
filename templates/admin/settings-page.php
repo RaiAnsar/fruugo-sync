@@ -59,25 +59,22 @@ $api_status = is_array($api_status) ? $api_status : array(
         <div class="card">
             <h2><?php _e('API Connection Status', 'fruugosync'); ?></h2>
             <div class="api-status-wrapper">
-                <div id="api-status-indicator" class="api-status <?php echo esc_attr($api_status['status']); ?>">
-                    <span class="status-icon"></span>
-                    <span class="status-text">
-                        <?php 
-                        if ($api_status['status'] === 'connected') {
-                            _e('Connected', 'fruugosync');
-                        } else {
-                            _e('Not Connected', 'fruugosync');
-                        }
-                        ?>
-                    </span>
-                    <?php if (!empty($api_status['error'])): ?>
-                        <p class="error-message"><?php echo esc_html($api_status['error']); ?></p>
-                    <?php endif; ?>
-                </div>
-                <button type="button" id="test-connection" class="button button-secondary">
-                    <?php _e('Test Connection', 'fruugosync'); ?>
-                </button>
-            </div>
+    <?php 
+    $status_class = isset($api_status['status']) ? esc_attr($api_status['status']) : 'unknown';
+    $status_text = $status_class === 'connected' ? __('Connected', 'fruugosync') : __('Not Connected', 'fruugosync');
+    ?>
+    <div id="api-status-indicator" class="api-status <?php echo $status_class; ?>">
+        <span class="status-icon"></span>
+        <span class="status-text"><?php echo esc_html($status_text); ?></span>
+        <?php if (!empty($api_status['error'])): ?>
+            <p class="error-message"><?php echo esc_html($api_status['error']); ?></p>
+        <?php endif; ?>
+    </div>
+    <button type="button" id="test-connection" class="button button-secondary">
+        <?php _e('Test Connection', 'fruugosync'); ?>
+    </button>
+    <span class="spinner"></span>
+</div>
         </div>
 
         <div class="card">
