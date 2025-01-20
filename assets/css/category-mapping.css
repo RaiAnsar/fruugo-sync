@@ -1,97 +1,69 @@
-/* Tab Navigation */
-.nav-tab-wrapper {
-    margin-bottom: 20px;
+/* Base styles */
+.wrap {
+    margin: 20px 0;
 }
 
-/* Section Title */
-.section-title {
-    background: #f1f1f1;
-    padding: 10px 15px;
+/* Info box */
+.info-box {
+    border-left: 4px solid #00a0d2;
+    margin: 20px 0;
+    padding: 12px;
+    background: #fff;
+}
+
+/* Categories */
+.category-tree-container {
+    margin: 20px 0;
+    background: #fff;
+    padding: 20px;
+}
+
+.ced_fruugo_cat_ul {
     margin: 0;
-    border: 1px solid #ccd0d4;
-    border-bottom: none;
+    padding: 0;
+    list-style: none;
 }
 
-/* Table Styles */
-.wp-list-table {
-    border-spacing: 0;
-    width: 100%;
-    clear: both;
-    margin: 0;
+.ced_fruugo_cat_ul li {
+    margin: 5px 0;
+    padding: 5px 0;
 }
 
-.wp-list-table th {
-    font-weight: 600;
-    padding: 8px 10px;
-    text-align: left;
-    line-height: 1.3em;
+.category-link {
+    color: #0073aa;
+    text-decoration: none;
+    display: block;
+    padding: 5px;
 }
 
-.wp-list-table td {
-    padding: 8px 10px;
-    line-height: 1.3em;
-    vertical-align: middle;
+.category-link:hover {
+    color: #00a0d2;
 }
 
-/* Column Widths */
-.column-category {
-    width: 25%;
+/* Selected Categories */
+.selected-categories-wrapper {
+    margin-top: 20px;
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ddd;
 }
 
-.column-slug {
-    width: 15%;
+.selected-categories-wrapper h3 {
+    margin-top: 0;
 }
 
-.column-select-profile,
-.column-selected-profile {
-    width: 25%;
+.selected-categories-list {
+    min-height: 50px;
+    border: 1px solid #ddd;
+    padding: 10px;
 }
 
-.column-progress {
-    width: 10%;
+/* Refresh button */
+#refresh-categories {
+    margin: 10px 0;
 }
 
-/* Select Dropdown */
-.profile-select {
-    width: 100%;
-    max-width: 250px;
-    height: 30px;
-    border: 1px solid #7e8993;
-    border-radius: 3px;
-    padding: 0 24px 0 8px;
-}
-
-/* Progress Bar */
-.progress-bar {
-    background: #e0e0e0;
-    height: 20px;
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: #787878;
-    width: 0;
-    transition: width 0.3s ease;
-}
-
-/* Status Text */
-.selected-profile {
-    color: #72777c;
-}
-
-/* Responsive Design */
-@media screen and (max-width: 782px) {
-    .wp-list-table tr:not(.inline-edit-row):not(.no-items) td:not(.column-primary) {
-        display: none;
-    }
-    
-    .wp-list-table td.column-primary {
-        padding-right: 50px;
-    }
-    
-    .profile-select {
-        max-width: 100%;
-    }
+/* Notice styles */
+.notice {
+    margin: 15px 0;
 }

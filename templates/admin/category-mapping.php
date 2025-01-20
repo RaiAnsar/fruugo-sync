@@ -3,55 +3,32 @@
 <div class="wrap">
     <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
 
-    <div class="nav-tab-wrapper">
-        <a href="#" class="nav-tab nav-tab-active">BULK PROFILE ASSIGNMENT</a>
-        <a href="#" class="nav-tab">BULK PRODUCT UPLOAD</a>
-        <a href="#" class="nav-tab">CSV EXPORT/IMPORT</a>
+    <div class="info-box">
+        <p><?php _e('Map your WooCommerce categories to Fruugo categories.', 'fruugosync'); ?></p>
     </div>
 
-    <div class="assign-profile-section">
-        <h2 class="section-title">ASSIGN PROFILE TO CATEGORY</h2>
+    <button type="button" id="refresh-categories" class="button">
+        <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
+    </button>
 
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th class="column-category">Category</th>
-                    <th class="column-slug">Slug</th>
-                    <th class="column-select-profile">Select Profile</th>
-                    <th class="column-selected-profile">Selected Profile</th>
-                    <th class="column-progress">Progress</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                if (!empty($woo_categories)) {
-                    foreach ($woo_categories as $category) {
-                        ?>
-                        <tr>
-                            <td><?php echo esc_html($category->name); ?></td>
-                            <td><?php echo esc_html($category->slug); ?></td>
-                            <td>
-                                <select class="profile-select" data-category="<?php echo esc_attr($category->term_id); ?>">
-                                    <option value="">--Select Profile--</option>
-                                    <?php foreach ($profiles as $profile): ?>
-                                        <option value="<?php echo esc_attr($profile['id']); ?>">
-                                            <?php echo esc_html($profile['name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                            <td class="selected-profile">Profile Not selected</td>
-                            <td>
-                                <div class="progress-bar">
-                                    <div class="progress-fill"></div>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php
-                    }
-                }
-                ?>
-            </tbody>
-        </table>
+    <h2><?php _e('Root Categories', 'fruugosync'); ?></h2>
+    
+    <div class="category-tree-container">
+        <ul class="ced_fruugo_cat_ul ced_fruugo_1lvl">
+            <?php if (!empty($root_categories)): ?>
+                <?php foreach ($root_categories as $category): ?>
+                    <li>
+                        <a href="#" class="category-link"><?php echo esc_html($category); ?></a>
+                    </li>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <li class="no-categories"><?php _e('No categories available', 'fruugosync'); ?></li>
+            <?php endif; ?>
+        </ul>
+    </div>
+
+    <div class="selected-categories-wrapper">
+        <h3><?php _e('Selected Categories', 'fruugosync'); ?></h3>
+        <div class="selected-categories-list"></div>
     </div>
 </div>
