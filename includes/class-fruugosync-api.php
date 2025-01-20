@@ -92,6 +92,11 @@ public function clear_cache() {
  * Get Fruugo categories
  */
 public function get_categories($force_refresh = false) {
+error_log("Debug path info:");
+error_log("FRUUGOSYNC_PATH: " . FRUUGOSYNC_PATH);
+error_log("__FILE__: " . __FILE__);
+error_log("dirname(__FILE__): " . dirname(__FILE__));
+error_log("Current working directory: " . getcwd());
     // Get absolute path to the file
     $file_path = realpath(FRUUGOSYNC_PATH . 'data/json/category.json');
     error_log("Absolute path to category file: " . $file_path);
