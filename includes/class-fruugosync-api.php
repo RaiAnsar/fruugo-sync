@@ -82,24 +82,16 @@ public function clear_cache() {
 /**
  * Get Fruugo categories from local JSON
  */
+/**
+ * Get Fruugo categories and store them in JSON
+ */
 public function get_categories($force_refresh = false) {
-    // Check cache first
-    $cached_categories = get_transient('fruugosync_categories');
-    if (!$force_refresh && false !== $cached_categories) {
-        return array(
-            'success' => true,
-            'data' => $cached_categories
-        );
-    }
-
-    // Load from local JSON file
-    $json_file = FRUUGOSYNC_PATH . 'data/categories.json';
-    if (file_exists($json_file)) {
+    $json_file = WP_CONTENT_DIR . '/plugins/fruugo-sync/data/json/category.json';
+    
+    // Return cached file if exists and not forcing refresh
+    if (!$force_refresh && file_exists($json_file)) {
         $categories = json_decode(file_get_contents($json_file), true);
         if ($categories) {
-            // Cache the results
-            set_transient('fruugosync_categories', $categories, DAY_IN_SECONDS);
-            
             return array(
                 'success' => true,
                 'data' => $categories
@@ -107,15 +99,50 @@ public function get_categories($force_refresh = false) {
         }
     }
 
-    // If no local file, attempt API call with short timeout
-    return $this->make_request('categories', 'GET', null, array(
+    // Make API request
+    $categories = $this->make_request('v1/products', 'GET', null, array(
         'timeout' => 30,
         'headers' => array(
             'Content-Type' => 'application/json',
             'Accept' => 'application/json'
         )
     ));
+
+    if ($categories['success'] && !empty($categories['data'])) {
+        // Format categories for storage
+        $formatted_cats = $this->format_categories_for_storage($categories['data']);
+        
+        // Save to file
+        file_put_contents($json_file, wp_json_encode($formatted_cats));
+        
+        return array(
+            'success' => true,
+            'data' => $formatted_cats
+        );
+    }
+
+    return array(
+        'success' => false,
+        'message' => isset($categories['message']) ? $categories['message'] : 'Failed to fetch categories'
+    );
 }
+
+/**
+ * Format categories into the expected structure
+ */
+private function format_categories_for_storage($categories) {
+    $formatted = array();
+    foreach ($categories as $category) {
+        // Format to match their structure with levels
+        $formatted[] = array(
+            'level1' => $category['name'],
+            'level2' => isset($category['children']) ? array_column($category['children'], 'name') : array(),
+            // Add more levels as needed
+        );
+    }
+    return $formatted;
+}
+
 /**
  * Update local categories file
  */
