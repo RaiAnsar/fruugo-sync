@@ -86,45 +86,55 @@ public function clear_cache() {
  * Get Fruugo categories and store them in JSON
  */
 public function get_categories($force_refresh = false) {
-    $json_file = WP_CONTENT_DIR . '/plugins/fruugo-sync/data/json/category.json';
-    
-    // Return cached file if exists and not forcing refresh
-    if (!$force_refresh && file_exists($json_file)) {
-        $categories = json_decode(file_get_contents($json_file), true);
-        if ($categories) {
+    try {
+        $cached_categories = get_transient('fruugosync_categories');
+        if (!$force_refresh && false !== $cached_categories) {
             return array(
                 'success' => true,
-                'data' => $categories
+                'data' => $cached_categories
             );
         }
-    }
 
-    // Make API request
-    $categories = $this->make_request('v1/products', 'GET', null, array(
-        'timeout' => 30,
-        'headers' => array(
-            'Content-Type' => 'application/json',
-            'Accept' => 'application/json'
-        )
-    ));
+        $response = wp_remote_get($this->api_urls['v3_base'] . 'categories', array(
+            'timeout' => 60,
+            'headers' => array(
+                'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json'
+            ),
+            'sslverify' => false
+        ));
 
-    if ($categories['success'] && !empty($categories['data'])) {
-        // Format categories for storage
-        $formatted_cats = $this->format_categories_for_storage($categories['data']);
-        
-        // Save to file
-        file_put_contents($json_file, wp_json_encode($formatted_cats));
+        if (is_wp_error($response)) {
+            throw new Exception($response->get_error_message());
+        }
+
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            throw new Exception('API returned status code: ' . $response_code);
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $categories = json_decode($body, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception('Invalid JSON response from API');
+        }
+
+        set_transient('fruugosync_categories', $categories, HOUR_IN_SECONDS);
         
         return array(
             'success' => true,
-            'data' => $formatted_cats
+            'data' => $categories
+        );
+
+    } catch (Exception $e) {
+        error_log('FruugoSync Category Error: ' . $e->getMessage());
+        return array(
+            'success' => false,
+            'message' => $e->getMessage()
         );
     }
-
-    return array(
-        'success' => false,
-        'message' => isset($categories['message']) ? $categories['message'] : 'Failed to fetch categories'
-    );
 }
 
 /**

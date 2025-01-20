@@ -115,3 +115,51 @@
 .notice {
     margin: 20px 0;
 }
+
+.fruugosync-category-mapping {
+    margin-top: 20px;
+}
+
+.loading-indicator {
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+}
+
+.loading-indicator .spinner {
+    float: none;
+    margin-right: 10px;
+}
+
+.category-tree-container {
+    margin-top: 20px;
+}
+
+.ced_fruugo_cat_ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.category-item {
+    padding: 5px 0;
+    display: flex;
+    align-items: center;
+}
+
+.expand-category {
+    cursor: pointer;
+    margin-right: 5px;
+    color: #0073aa;
+}
+
+#category-error {
+    margin: 20px 0;
+}
+
+.selected-categories-list {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+}
