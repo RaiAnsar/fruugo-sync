@@ -168,38 +168,49 @@ class FruugoSync_Admin {
     /**
      * Render category mapping page
      */
-    public function render_category_mapping_page() {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-
-        // Check API connection first
-        $api_status = $this->settings->get('fruugosync_api_status');
-        if ($api_status['status'] !== 'connected') {
-            add_settings_error(
-                'fruugosync_messages',
-                'not_connected',
-                __('Please configure and test your API connection before mapping categories.', 'fruugosync'),
-                'error'
-            );
-        }
-
-        $woo_categories = get_terms(array(
-            'taxonomy' => 'product_cat',
-            'hide_empty' => false
-        ));
-
-        // Get Fruugo categories with error handling
-        $fruugo_categories = $this->api->get_categories();
-        $current_mappings = $this->settings->get_category_mappings();
-
-        if (!$fruugo_categories['success']) {
-            $this->last_error = $fruugo_categories['message'];
-        }
-
-        // Include template
-        require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/category-mapping.php';
+/**
+ * Render category mapping page
+ */
+public function render_category_mapping_page() {
+    if (!current_user_can('manage_options')) {
+        return;
     }
+
+    // Check API connection first
+    $api_status = $this->settings->get('fruugosync_api_status');
+    if (!is_array($api_status)) {
+        $api_status = array(
+            'status' => 'unknown',
+            'error' => ''
+        );
+    }
+
+    if ($api_status['status'] !== 'connected') {
+        ?>
+        <div class="notice notice-error">
+            <p><?php _e('Please configure and test your API connection before mapping categories.', 'fruugosync'); ?></p>
+        </div>
+        <?php
+        return;
+    }
+
+    // Get WooCommerce categories
+    $woo_categories = get_terms(array(
+        'taxonomy' => 'product_cat',
+        'hide_empty' => false
+    ));
+
+    // Get Fruugo categories with error handling
+    $fruugo_categories = $this->api->get_categories();
+    $current_mappings = $this->settings->get_category_mappings();
+
+    if (!$fruugo_categories['success']) {
+        $this->last_error = $fruugo_categories['message'];
+    }
+
+    // Include template
+    require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/category-mapping.php';
+}
 
     /**
      * AJAX handler for testing API connection
