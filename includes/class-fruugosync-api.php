@@ -88,6 +88,9 @@ public function clear_cache() {
 /**
  * Get Fruugo categories
  */
+/**
+ * Get Fruugo categories
+ */
 public function get_categories($force_refresh = false) {
     try {
         // First try cached data
@@ -102,15 +105,23 @@ public function get_categories($force_refresh = false) {
         }
 
         // API request configuration
-        $endpoint = 'https://product-api.fruugo.com/v1/products';  // Use the base product API URL
+        $endpoint = 'https://product-api.fruugo.com/v1/products/all'; // Changed to the correct endpoint
         $args = array(
-            'timeout' => 120,  // Increase timeout to 120 seconds
+            'method' => 'POST', // Changed to POST
+            'timeout' => 120,
             'headers' => array(
                 'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'X-Correlation-ID' => 'fruugosync_' . uniqid()
             ),
+            'body' => wp_json_encode(array(
+                'filters' => array(
+                    array(
+                        'type' => 'categoryFilter'
+                    )
+                )
+            )),
             'sslverify' => false
         );
 
@@ -121,7 +132,7 @@ public function get_categories($force_refresh = false) {
         }
 
         // Make the request
-        $response = wp_remote_get($endpoint, $args);
+        $response = wp_remote_request($endpoint, $args);
 
         // Handle wp_error
         if (is_wp_error($response)) {
@@ -135,18 +146,38 @@ public function get_categories($force_refresh = false) {
         // Log response for debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('FruugoSync Category Response Code: ' . $response_code);
-            error_log('FruugoSync Category Response Body: ' . substr($body, 0, 1000)); // Log first 1000 chars
+            error_log('FruugoSync Category Response Body: ' . substr($body, 0, 1000));
         }
 
-        // Check response code
-        if ($response_code !== 200) {
-            throw new Exception('API returned status code: ' . $response_code);
+        // Check response code - For this endpoint, 202 is success
+        if ($response_code !== 202 && $response_code !== 200) {
+            throw new Exception('API returned status code: ' . $response_code . ' with message: ' . $body);
         }
 
         // Parse response
-        $categories = json_decode($body, true);
+        $data = json_decode($body, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new Exception('Invalid JSON response from API');
+        }
+
+        // Process webhook response
+        if (isset($data['dataLocation'])) {
+            // Need to fetch categories from the provided URL
+            $categories_response = wp_remote_get($data['dataLocation'], array(
+                'timeout' => 120,
+                'sslverify' => false
+            ));
+
+            if (is_wp_error($categories_response)) {
+                throw new Exception($categories_response->get_error_message());
+            }
+
+            $categories = json_decode(wp_remote_retrieve_body($categories_response), true);
+            if (!$categories) {
+                throw new Exception('Failed to parse categories from data location');
+            }
+        } else {
+            $categories = $data;
         }
 
         // Cache the successful response
