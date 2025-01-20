@@ -92,57 +92,68 @@ public function clear_cache() {
  * Get Fruugo categories
  */
 public function get_categories($force_refresh = false) {
-error_log("Debug path info:");
-error_log("FRUUGOSYNC_PATH: " . FRUUGOSYNC_PATH);
-error_log("__FILE__: " . __FILE__);
-error_log("dirname(__FILE__): " . dirname(__FILE__));
-error_log("Current working directory: " . getcwd());
-    // Get absolute path to the file
-    $file_path = realpath(FRUUGOSYNC_PATH . 'data/json/category.json');
-    error_log("Absolute path to category file: " . $file_path);
-
-    // Verify the file exists and is readable
-    if (!$file_path || !is_readable($file_path)) {
-        error_log("File not found or not readable at: " . FRUUGOSYNC_PATH . 'data/json/category.json');
-        return array(
-            'success' => false,
-            'message' => 'Category file not found or not readable'
+    try {
+        $debug = array(
+            'FRUUGOSYNC_PATH' => FRUUGOSYNC_PATH,
+            '__FILE__' => __FILE__,
+            'dirname(__FILE__)' => dirname(__FILE__),
+            'getcwd()' => getcwd(),
+            'document_root' => $_SERVER['DOCUMENT_ROOT'],
+            'attempt_paths' => array(
+                'path1' => FRUUGOSYNC_PATH . 'data/json/category.json',
+                'path2' => dirname(__FILE__) . '/data/json/category.json',
+                'path3' => getcwd() . '/data/json/category.json',
+                'path4' => '/home/mediatronixs/htdocs/mediatronixs.com/wp-content/plugins/fruugo-sync/data/json/category.json'
+            )
         );
-    }
 
-    // Read the file contents
-    $content = file_get_contents($file_path);
-    if ($content === false) {
-        error_log("Failed to read category file");
-        return array(
-            'success' => false,
-            'message' => 'Failed to read category file'
-        );
-    }
+        error_log('Debug information: ' . print_r($debug, true));
 
-    // Parse JSON
-    $categories = json_decode($content, true);
-    if (!$categories) {
-        error_log("Failed to parse JSON from category file");
-        return array(
-            'success' => false,
-            'message' => 'Invalid category data'
-        );
-    }
+        // Try different path variations
+        foreach ($debug['attempt_paths'] as $label => $test_path) {
+            error_log("Testing $label: $test_path - Exists: " . (file_exists($test_path) ? 'YES' : 'NO'));
+            
+            if (file_exists($test_path)) {
+                error_log("Found file at: $test_path");
+                $content = file_get_contents($test_path);
+                
+                if ($content === false) {
+                    error_log("Failed to read file at: $test_path");
+                    continue;
+                }
 
-    // Extract level1 categories
-    $level1_cats = array();
-    foreach ($categories as $cat) {
-        if (!empty($cat['level1'])) {
-            $level1_cats[] = trim($cat['level1']);
+                $categories = json_decode($content, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    error_log("Successfully loaded categories from: $test_path");
+                    
+                    // Extract level1 categories
+                    $level1_cats = array();
+                    foreach ($categories as $cat) {
+                        if (!empty($cat['level1'])) {
+                            $level1_cats[] = trim($cat['level1']);
+                        }
+                    }
+                    $level1_cats = array_unique($level1_cats);
+
+                    return array(
+                        'success' => true,
+                        'data' => array_values($level1_cats)
+                    );
+                } else {
+                    error_log("JSON decode error for $test_path: " . json_last_error_msg());
+                }
+            }
         }
-    }
-    $level1_cats = array_unique($level1_cats);
 
-    return array(
-        'success' => true,
-        'data' => array_values($level1_cats)
-    );
+        throw new Exception("No valid category file found in any location");
+
+    } catch (Exception $e) {
+        error_log("Category loading error: " . $e->getMessage());
+        return array(
+            'success' => false,
+            'message' => $e->getMessage()
+        );
+    }
 }
 
 /**
