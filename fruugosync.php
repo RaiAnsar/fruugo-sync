@@ -111,6 +111,28 @@ final class FruugoSync_Loader {
     }
 
     public function activate() {
+            // Create required directories
+    $json_dir = FRUUGOSYNC_PATH . 'data/json';
+    if (!file_exists($json_dir)) {
+        wp_mkdir_p($json_dir);
+    }
+
+    // Copy default category file if it doesn't exist
+    $category_file = $json_dir . '/category.json';
+    if (!file_exists($category_file)) {
+        $default_categories = FRUUGOSYNC_PATH . 'data/default-categories.json';
+        if (file_exists($default_categories)) {
+            copy($default_categories, $category_file);
+        }
+    }
+
+    // Set proper permissions
+    if (file_exists($json_dir)) {
+        chmod($json_dir, 0755);
+    }
+    if (file_exists($category_file)) {
+        chmod($category_file, 0644);
+    }
         $this->create_directories();
         $this->set_default_options();
         flush_rewrite_rules();

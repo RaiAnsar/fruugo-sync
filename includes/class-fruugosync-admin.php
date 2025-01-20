@@ -185,6 +185,14 @@ class FruugoSync_Admin {
         require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/settings-page.php';
     }
 
+/*temporary code */
+    error_log('Category file path: ' . FRUUGOSYNC_PATH . 'data/json/category.json');
+error_log('File exists: ' . (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json') ? 'yes' : 'no'));
+if (file_exists(FRUUGOSYNC_PATH . 'data/json/category.json')) {
+    error_log('File permissions: ' . decoct(fileperms(FRUUGOSYNC_PATH . 'data/json/category.json') & 0777));
+    error_log('File content: ' . substr(file_get_contents(FRUUGOSYNC_PATH . 'data/json/category.json'), 0, 500));
+}
+
     /**
      * Render category mapping page
      */
@@ -198,7 +206,14 @@ public function render_category_mapping_page() {
     if (!current_user_can('manage_options')) {
         return;
     }
-
+ // Check if category file exists
+ $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
+ if (!file_exists($json_file)) {
+     echo '<div class="notice notice-error"><p>' . 
+          __('Category file not found. Please try refreshing categories.', 'fruugosync') . 
+          '</p></div>';
+     return;
+ }
     // Get current settings and categories
     $api_status = $this->settings->get('fruugosync_api_status');
     if (!is_array($api_status)) {

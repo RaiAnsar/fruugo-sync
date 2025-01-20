@@ -96,27 +96,48 @@ public function get_categories($force_refresh = false) {
         // Get categories from local JSON file
         $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
         
-        if (file_exists($json_file)) {
-            $categories = json_decode(file_get_contents($json_file), true);
-            
-            if ($categories) {
-                // Get unique level1 categories first
-                $level1_categories = array();
-                foreach ($categories as $category) {
-                    if (!empty($category['level1'])) {
-                        $level1_categories[] = trim($category['level1']);
-                    }
-                }
-                $level1_categories = array_unique($level1_categories);
-
-                return array(
-                    'success' => true,
-                    'data' => $level1_categories
-                );
-            }
+        error_log('Attempting to read category file: ' . $json_file);
+        
+        if (!file_exists($json_file)) {
+            error_log('Category file does not exist at: ' . $json_file);
+            throw new Exception('Category file not found');
         }
 
-        throw new Exception('Category file not found or invalid');
+        $json_content = file_get_contents($json_file);
+        if ($json_content === false) {
+            error_log('Failed to read category file');
+            throw new Exception('Failed to read category file');
+        }
+
+        error_log('Category file content: ' . substr($json_content, 0, 500)); // Log first 500 chars
+
+        $categories = json_decode($json_content, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log('JSON decode error: ' . json_last_error_msg());
+            throw new Exception('Invalid JSON data');
+        }
+
+        error_log('Number of categories loaded: ' . count($categories));
+        
+        if (!is_array($categories) || empty($categories)) {
+            throw new Exception('No categories found in file');
+        }
+
+        // Get unique level1 categories
+        $level1_categories = array();
+        foreach ($categories as $category) {
+            if (!empty($category['level1'])) {
+                $level1_categories[] = trim($category['level1']);
+            }
+        }
+        $level1_categories = array_values(array_unique($level1_categories));
+
+        error_log('Found level1 categories: ' . print_r($level1_categories, true));
+
+        return array(
+            'success' => true,
+            'data' => $level1_categories
+        );
 
     } catch (Exception $e) {
         error_log('FruugoSync Category Error: ' . $e->getMessage());
