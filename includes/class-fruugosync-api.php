@@ -93,7 +93,7 @@ public function clear_cache() {
  */
 public function get_categories($force_refresh = false) {
     try {
-        // First try cached data
+        // Check cache first
         if (!$force_refresh) {
             $cached_categories = get_transient('fruugosync_categories');
             if (false !== $cached_categories) {
@@ -105,9 +105,20 @@ public function get_categories($force_refresh = false) {
         }
 
         // API request configuration
-        $endpoint = 'https://product-api.fruugo.com/v1/products/all'; // Changed to the correct endpoint
+        $endpoint = 'https://product-api.fruugo.com/v1/products/all';
+        
+        // Fix the filter structure according to the API spec
+        $request_body = array(
+            'filters' => array(
+                array(
+                    'type' => 'categoryFilter',
+                    'categories' => array() // Empty array to get all categories
+                )
+            )
+        );
+
         $args = array(
-            'method' => 'POST', // Changed to POST
+            'method' => 'POST',
             'timeout' => 120,
             'headers' => array(
                 'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
@@ -115,54 +126,45 @@ public function get_categories($force_refresh = false) {
                 'Accept' => 'application/json',
                 'X-Correlation-ID' => 'fruugosync_' . uniqid()
             ),
-            'body' => wp_json_encode(array(
-                'filters' => array(
-                    array(
-                        'type' => 'categoryFilter'
-                    )
-                )
-            )),
+            'body' => wp_json_encode($request_body),
             'sslverify' => false
         );
 
-        // Log the request attempt
+        // Log request
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('FruugoSync Category Request URL: ' . $endpoint);
             error_log('FruugoSync Category Request Args: ' . print_r($args, true));
         }
 
-        // Make the request
         $response = wp_remote_request($endpoint, $args);
 
-        // Handle wp_error
         if (is_wp_error($response)) {
             throw new Exception($response->get_error_message());
         }
 
-        // Get response code and body
         $response_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
 
-        // Log response for debugging
+        // Log response
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('FruugoSync Category Response Code: ' . $response_code);
-            error_log('FruugoSync Category Response Body: ' . substr($body, 0, 1000));
+            error_log('FruugoSync Category Response Body: ' . $body);
         }
 
-        // Check response code - For this endpoint, 202 is success
+        // Handle response code
         if ($response_code !== 202 && $response_code !== 200) {
             throw new Exception('API returned status code: ' . $response_code . ' with message: ' . $body);
         }
 
-        // Parse response
         $data = json_decode($body, true);
+        
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new Exception('Invalid JSON response from API');
         }
 
-        // Process webhook response
+        // If we get a webhook response with dataLocation
         if (isset($data['dataLocation'])) {
-            // Need to fetch categories from the provided URL
+            // We need to fetch from the provided URL
             $categories_response = wp_remote_get($data['dataLocation'], array(
                 'timeout' => 120,
                 'sslverify' => false
@@ -173,14 +175,11 @@ public function get_categories($force_refresh = false) {
             }
 
             $categories = json_decode(wp_remote_retrieve_body($categories_response), true);
-            if (!$categories) {
-                throw new Exception('Failed to parse categories from data location');
-            }
         } else {
             $categories = $data;
         }
 
-        // Cache the successful response
+        // Cache the result
         set_transient('fruugosync_categories', $categories, HOUR_IN_SECONDS);
         
         return array(
@@ -191,6 +190,7 @@ public function get_categories($force_refresh = false) {
     } catch (Exception $e) {
         error_log('FruugoSync Category Error: ' . $e->getMessage());
         error_log('FruugoSync Category Error Stack Trace: ' . $e->getTraceAsString());
+        
         return array(
             'success' => false,
             'message' => 'Error fetching categories: ' . $e->getMessage()
