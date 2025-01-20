@@ -73,35 +73,47 @@ jQuery(document).ready(function($) {
         });
 
         // Category expansion handler
-        $(document).on('click', '.ced_fruugo_expand_fruugocat', function() {
-            var $this = $(this);
-            var level = parseInt($this.attr('data-cat-level'));
-            var parentCat = $this.attr('data-parent-cat-name');
-
-            // Clear next level
-            $('.ced_fruugo_' + (level + 1) + 'lvl').empty();
-            
-            $this.addClass('loading');
-
-            $.ajax({
-                url: fruugosync_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'get_fruugo_subcategories',
-                    nonce: fruugosync_ajax.nonce,
-                    parent: parentCat,
-                    level: level
-                },
-                success: function(response) {
-                    if (response.success && response.data) {
-                        renderSubcategories(response.data, level);
-                    }
-                },
-                complete: function() {
-                    $this.removeClass('loading');
-                }
-            });
-        });
+       // Category expansion handler
+$(document).on('click', '.ced_fruugo_expand_fruugocat', function() {
+    var $this = $(this);
+    var level = parseInt($this.data('cat-level'));
+    var parentCat = $this.data('parent-cat-name');
+    
+    // Clear all levels after current level
+    for (var i = level + 1; i <= 9; i++) {
+        $('.ced_fruugo_' + i + 'lvl').empty();
+    }
+    
+    $.ajax({
+        url: fruugosync_ajax.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'get_fruugo_subcategories',
+            nonce: fruugosync_ajax.nonce,
+            parent: parentCat,
+            level: level + 1
+        },
+        success: function(response) {
+            if (response.success && response.data.length > 0) {
+                var $container = $('.ced_fruugo_' + (level + 1) + 'lvl');
+                $container.empty();
+                
+                response.data.forEach(function(category) {
+                    $container.append(
+                        '<li>' +
+                        '<input type="checkbox" class="ced_fruugo_cat_select">' +
+                        '<label class="ced_fruugo_expand_fruugocat" ' +
+                        'data-parent-cat-name="' + category + '" ' +
+                        'data-cat-level="' + (level + 1) + '">' +
+                        category + '>' +
+                        '</label>' +
+                        '</li>'
+                    );
+                });
+            }
+        }
+    });
+});
     }
 
     function renderCategories(categories) {

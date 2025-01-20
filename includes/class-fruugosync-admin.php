@@ -343,26 +343,24 @@ public function render_category_mapping_page() {
      */
     public function ajax_get_subcategories() {
         check_ajax_referer('fruugosync-ajax-nonce', 'nonce');
-    
-        if (!isset($_POST['parent']) || !isset($_POST['level'])) {
-            wp_send_json_error(array(
-                'message' => __('Missing required parameters', 'fruugosync')
-            ));
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
         }
     
-        $parent = sanitize_text_field($_POST['parent']);
-        $level = intval($_POST['level']);
+        $parent = isset($_POST['parent']) ? sanitize_text_field($_POST['parent']) : '';
+        $level = isset($_POST['level']) ? intval($_POST['level']) : 1;
+    
+        if (empty($parent)) {
+            wp_send_json_error(array('message' => 'Parent category is required'));
+        }
     
         $result = $this->api->get_subcategories($parent, $level);
-    
+        
         if ($result['success']) {
-            wp_send_json_success(array(
-                'categories' => $result['data']
-            ));
+            wp_send_json_success($result['data']);
         } else {
-            wp_send_json_error(array(
-                'message' => $result['message']
-            ));
+            wp_send_json_error(array('message' => $result['message']));
         }
     }
     /**

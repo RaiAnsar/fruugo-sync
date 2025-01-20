@@ -93,25 +93,14 @@ public function clear_cache() {
  */
 public function get_categories($force_refresh = false) {
     try {
-        // First check transient
-        if (!$force_refresh) {
-            $cached_categories = get_transient('fruugosync_categories');
-            if (false !== $cached_categories) {
-                return array(
-                    'success' => true,
-                    'data' => $cached_categories
-                );
-            }
-        }
-
-        // Get categories from file
+        // Get categories from local JSON file
         $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
         
         if (file_exists($json_file)) {
             $categories = json_decode(file_get_contents($json_file), true);
             
-            if (json_last_error() === JSON_ERROR_NONE) {
-                // Process categories to get unique level1 values
+            if ($categories) {
+                // Get unique level1 categories first
                 $level1_categories = array();
                 foreach ($categories as $category) {
                     if (!empty($category['level1'])) {
@@ -119,25 +108,15 @@ public function get_categories($force_refresh = false) {
                     }
                 }
                 $level1_categories = array_unique($level1_categories);
-                
-                // Store full category data for later use
-                set_transient('fruugosync_categories', $categories, DAY_IN_SECONDS);
-                // Store level 1 categories separately
-                set_transient('fruugosync_level1_categories', $level1_categories, DAY_IN_SECONDS);
-                
+
                 return array(
                     'success' => true,
-                    'data' => array(
-                        'all_categories' => $categories,
-                        'level1_categories' => $level1_categories
-                    )
+                    'data' => $level1_categories
                 );
             }
-            
-            throw new Exception('Invalid category data format');
         }
 
-        throw new Exception('Category file not found');
+        throw new Exception('Category file not found or invalid');
 
     } catch (Exception $e) {
         error_log('FruugoSync Category Error: ' . $e->getMessage());
@@ -149,26 +128,28 @@ public function get_categories($force_refresh = false) {
 }
 
 /**
- * Get subcategories for a specific level
+ * Get subcategories for a specific level and parent
  */
 public function get_subcategories($parent_category, $level) {
     try {
-        $categories = get_transient('fruugosync_categories');
+        $json_file = FRUUGOSYNC_PATH . 'data/json/category.json';
+        
+        if (!file_exists($json_file)) {
+            throw new Exception('Category file not found');
+        }
+
+        $categories = json_decode(file_get_contents($json_file), true);
         if (!$categories) {
-            $result = $this->get_categories();
-            if (!$result['success']) {
-                throw new Exception($result['message']);
-            }
-            $categories = $result['data']['all_categories'];
+            throw new Exception('Invalid category data');
         }
 
         $subcategories = array();
+        $parent_level = 'level' . ($level - 1);
+        $current_level = 'level' . $level;
+
         foreach ($categories as $category) {
-            if (trim($category['level' . ($level-1)]) === trim($parent_category)) {
-                $next_level = 'level' . $level;
-                if (!empty($category[$next_level])) {
-                    $subcategories[] = trim($category[$next_level]);
-                }
+            if (trim($category[$parent_level]) === trim($parent_category) && !empty($category[$current_level])) {
+                $subcategories[] = trim($category[$current_level]);
             }
         }
 
