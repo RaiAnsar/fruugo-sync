@@ -1,9 +1,12 @@
 jQuery(document).ready(function($) {
-    // Test Connection Handler
+    // Test connection functionality
     $('#test-connection').on('click', function() {
         var button = $(this);
-        button.prop('disabled', true);
+        var originalText = button.text();
         
+        button.prop('disabled', true).text('Testing...');
+        $('.api-status-wrapper .spinner').addClass('is-active');
+
         $.ajax({
             url: fruugosync_ajax.ajax_url,
             type: 'POST',
@@ -18,12 +21,16 @@ jQuery(document).ready(function($) {
                         .addClass('connected')
                         .find('.status-text')
                         .text('Connected');
+                    
+                    $('.error-message').hide();
                 } else {
                     $('#api-status-indicator')
                         .removeClass('unknown connected')
                         .addClass('disconnected')
                         .find('.status-text')
                         .text('Not Connected');
+                    
+                    $('.error-message').show().text(response.data.message);
                 }
             },
             error: function() {
@@ -34,117 +41,181 @@ jQuery(document).ready(function($) {
                     .text('Connection Failed');
             },
             complete: function() {
-                button.prop('disabled', false);
+                button.prop('disabled', false).text(originalText);
+                $('.api-status-wrapper .spinner').removeClass('is-active');
             }
         });
     });
 
-    // Category Refresh Handler
-    $('#refresh-categories').on('click', function(e) {
-        e.preventDefault();
-        var button = $(this);
-        button.prop('disabled', true);
+    // Category management
+    var categoryManager = {
+        init: function() {
+            this.bindEvents();
+            this.loadCategories();
+        },
 
-        $.ajax({
-            url: fruugosync_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'refresh_fruugo_categories',
-                nonce: fruugosync_ajax.nonce
-            },
-            success: function(response) {
-                if (response.success && response.data.categories) {
-                    renderCategories(response.data.categories);
-                } else {
-                    showError(response.data.message || 'Failed to load categories');
+        bindEvents: function() {
+            $('#refresh-categories').on('click', this.refreshCategories.bind(this));
+            $('.category-tree-container').on('click', '.expand-category', this.loadSubcategories.bind(this));
+            $('.category-tree-container').on('click', '.category-checkbox', this.handleCategorySelection.bind(this));
+        },
+
+        loadCategories: function() {
+            $('.loading-indicator').show();
+            $('#category-error').hide();
+
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'refresh_fruugo_categories',
+                    nonce: fruugosync_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        this.renderCategories(response.data.level1_categories);
+                        this.loadSavedMappings();
+                    } else {
+                        $('#category-error').show().find('p').text(response.data.message);
+                    }
+                }.bind(this),
+                error: function() {
+                    $('#category-error').show().find('p').text('Failed to load categories');
+                }.bind(this),
+                complete: function() {
+                    $('.loading-indicator').hide();
                 }
-            },
-            error: function() {
-                showError('Failed to refresh categories');
-            },
-            complete: function() {
-                button.prop('disabled', false);
-            }
-        });
-    });
+            });
+        },
 
-    // Category expansion handler
-    $('.category-tree-container').on('click', '.ced_fruugo_expand_fruugocat', function() {
-        var $this = $(this);
-        var level = parseInt($this.data('cat-level'));
-        var parentCat = $this.data('parent-cat-name');
-        var catName = $this.data('cat-name');
+        refreshCategories: function(e) {
+            e.preventDefault();
+            this.loadCategories();
+        },
 
-        $.ajax({
-            url: fruugosync_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'get_fruugo_subcategories',
-                nonce: fruugosync_ajax.nonce,
-                parent: parentCat,
-                category: catName,
-                level: level
-            },
-            success: function(response) {
-                if (response.success) {
-                    renderSubcategories(response.data, level);
+        loadSubcategories: function(e) {
+            var $button = $(e.currentTarget);
+            var $parent = $button.closest('li');
+            var level = parseInt($parent.data('level')) + 1;
+            var categoryName = $parent.data('category');
+
+            if ($button.hasClass('loading')) return;
+
+            $button.addClass('loading').find('.spinner').addClass('is-active');
+
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'get_fruugo_subcategories',
+                    nonce: fruugosync_ajax.nonce,
+                    parent: categoryName,
+                    level: level
+                },
+                success: function(response) {
+                    if (response.success) {
+                        this.renderSubcategories(response.data.categories, level, $parent);
+                    }
+                }.bind(this),
+                complete: function() {
+                    $button.removeClass('loading').find('.spinner').removeClass('is-active');
                 }
+            });
+        },
+
+        renderCategories: function(categories) {
+            var $container = $('.ced_fruugo_1lvl').empty();
+            
+            if (!categories || !categories.length) {
+                $('#category-error').show().find('p').text('No categories available');
+                return;
             }
-        });
-    });
 
-    function renderCategories(categories) {
-        var $container = $('.ced_fruugo_1lvl');
-        $container.find('li').remove(); // Keep the h1 heading
-
-        if (!categories || !categories.length) {
-            showError('No categories available');
-            return;
-        }
-
-        categories.forEach(function(category) {
-            $container.append(
-                '<li>' +
-                '<label class="ced_fruugo_expand_fruugocat" ' +
-                'data-parent-cat-name="' + category + '" ' +
-                'data-cat-name="' + category + '" ' +
-                'data-cat-level="1">' +
-                category + '>' +
-                '<img class="ced_fruugo_category_loader" src="' + fruugosync_ajax.plugin_url + 'assets/images/loading.gif" width="20px" height="20px">' +
-                '</label>' +
-                '</li>'
-            );
-        });
-    }
-
-    function renderSubcategories(categories, level) {
-        var $container = $('.ced_fruugo_' + (level + 1) + 'lvl');
-        $container.empty();
-
-        if (categories && categories.length) {
             categories.forEach(function(category) {
-                $container.append(
-                    '<li>' +
-                    '<label class="ced_fruugo_expand_fruugocat" ' +
-                    'data-parent-cat-name="' + category + '" ' +
-                    'data-cat-name="' + category + '" ' +
-                    'data-cat-level="' + (level + 1) + '">' +
-                    category + '>' +
-                    '<img class="ced_fruugo_category_loader" src="' + fruugosync_ajax.plugin_url + 'assets/images/loading.gif" width="20px" height="20px">' +
-                    '</label>' +
-                    '</li>'
-                );
+                var $item = $('<li>', {
+                    'data-category': category,
+                    'data-level': 1
+                }).appendTo($container);
+
+                $('<input>', {
+                    type: 'checkbox',
+                    class: 'category-checkbox',
+                    'data-category': category
+                }).appendTo($item);
+
+                $('<span>', {
+                    text: category,
+                    class: 'category-name'
+                }).appendTo($item);
+
+                $('<button>', {
+                    class: 'expand-category',
+                    html: '<span class="spinner"></span>'
+                }).appendTo($item);
+            });
+        },
+
+        renderSubcategories: function(categories, level, $parent) {
+            var $container = $('.ced_fruugo_' + level + 'lvl');
+            $container.empty();
+
+            if (!categories || !categories.length) return;
+
+            categories.forEach(function(category) {
+                var $item = $('<li>', {
+                    'data-category': category,
+                    'data-level': level,
+                    'data-parent': $parent.data('category')
+                }).appendTo($container);
+
+                $('<input>', {
+                    type: 'checkbox',
+                    class: 'category-checkbox',
+                    'data-category': category
+                }).appendTo($item);
+
+                $('<span>', {
+                    text: category,
+                    class: 'category-name'
+                }).appendTo($item);
+
+                $('<button>', {
+                    class: 'expand-category',
+                    html: '<span class="spinner"></span>'
+                }).appendTo($item);
+            });
+        },
+
+        loadSavedMappings: function() {
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'get_category_mappings',
+                    nonce: fruugosync_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success && response.data.mappings) {
+                        this.displaySavedMappings(response.data.mappings);
+                    }
+                }.bind(this)
+            });
+        },
+
+        displaySavedMappings: function(mappings) {
+            var $container = $('.selected-categories-list');
+            $container.empty();
+
+            Object.keys(mappings).forEach(function(wooCategory) {
+                var fruugoCategory = mappings[wooCategory];
+                $('<div>', {
+                    class: 'mapping-item',
+                    text: wooCategory + ' → ' + fruugoCategory
+                }).appendTo($container);
             });
         }
-    }
+    };
 
-    function showError(message) {
-        var $error = $('<div class="notice notice-error"><p>' + message + '</p></div>');
-        $('.fruugosync-category-mapping').prepend($error);
-        setTimeout(function() {
-            $error.fadeOut(function() {
-                $(this).remove();
-            });
-        }, 5000);
-    }
+    // Initialize both functionalities
+    categoryManager.init();
 });
