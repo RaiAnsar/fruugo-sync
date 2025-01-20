@@ -85,42 +85,71 @@ public function clear_cache() {
 /**
  * Get Fruugo categories and store them in JSON
  */
+/**
+ * Get Fruugo categories
+ */
 public function get_categories($force_refresh = false) {
     try {
-        $cached_categories = get_transient('fruugosync_categories');
-        if (!$force_refresh && false !== $cached_categories) {
-            return array(
-                'success' => true,
-                'data' => $cached_categories
-            );
+        // First try cached data
+        if (!$force_refresh) {
+            $cached_categories = get_transient('fruugosync_categories');
+            if (false !== $cached_categories) {
+                return array(
+                    'success' => true,
+                    'data' => $cached_categories
+                );
+            }
         }
 
-        $response = wp_remote_get($this->api_urls['v3_base'] . 'categories', array(
-            'timeout' => 60,
+        // API request configuration
+        $endpoint = 'https://product-api.fruugo.com/v1/products';  // Use the base product API URL
+        $args = array(
+            'timeout' => 120,  // Increase timeout to 120 seconds
             'headers' => array(
                 'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
                 'Content-Type' => 'application/json',
-                'Accept' => 'application/json'
+                'Accept' => 'application/json',
+                'X-Correlation-ID' => 'fruugosync_' . uniqid()
             ),
             'sslverify' => false
-        ));
+        );
 
+        // Log the request attempt
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('FruugoSync Category Request URL: ' . $endpoint);
+            error_log('FruugoSync Category Request Args: ' . print_r($args, true));
+        }
+
+        // Make the request
+        $response = wp_remote_get($endpoint, $args);
+
+        // Handle wp_error
         if (is_wp_error($response)) {
             throw new Exception($response->get_error_message());
         }
 
+        // Get response code and body
         $response_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+
+        // Log response for debugging
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('FruugoSync Category Response Code: ' . $response_code);
+            error_log('FruugoSync Category Response Body: ' . substr($body, 0, 1000)); // Log first 1000 chars
+        }
+
+        // Check response code
         if ($response_code !== 200) {
             throw new Exception('API returned status code: ' . $response_code);
         }
 
-        $body = wp_remote_retrieve_body($response);
+        // Parse response
         $categories = json_decode($body, true);
-
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new Exception('Invalid JSON response from API');
         }
 
+        // Cache the successful response
         set_transient('fruugosync_categories', $categories, HOUR_IN_SECONDS);
         
         return array(
@@ -130,9 +159,10 @@ public function get_categories($force_refresh = false) {
 
     } catch (Exception $e) {
         error_log('FruugoSync Category Error: ' . $e->getMessage());
+        error_log('FruugoSync Category Error Stack Trace: ' . $e->getTraceAsString());
         return array(
             'success' => false,
-            'message' => $e->getMessage()
+            'message' => 'Error fetching categories: ' . $e->getMessage()
         );
     }
 }

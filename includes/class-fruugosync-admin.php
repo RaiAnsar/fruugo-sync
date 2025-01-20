@@ -320,20 +320,32 @@ public function render_category_mapping_page() {
             ));
         }
     
-        // Clear any cached categories
-        $this->api->clear_cache();
-        
-        // Get fresh categories and save to file
-        $result = $this->api->get_categories(true);
-        
-        if ($result['success']) {
-            wp_send_json_success(array(
-                'categories' => $result['data'],
-                'message' => __('Categories refreshed successfully', 'fruugosync')
-            ));
-        } else {
+        // Increase PHP timeout for this request
+        if (function_exists('set_time_limit')) {
+            set_time_limit(300);
+        }
+    
+        try {
+            // Clear cache
+            delete_transient('fruugosync_categories');
+            
+            // Get fresh categories
+            $result = $this->api->get_categories(true);
+            
+            if ($result['success']) {
+                wp_send_json_success(array(
+                    'categories' => $result['data'],
+                    'message' => __('Categories refreshed successfully', 'fruugosync')
+                ));
+            } else {
+                wp_send_json_error(array(
+                    'message' => $result['message']
+                ));
+            }
+        } catch (Exception $e) {
+            error_log('FruugoSync AJAX Error: ' . $e->getMessage());
             wp_send_json_error(array(
-                'message' => $result['message']
+                'message' => __('Error refreshing categories. Please try again.', 'fruugosync')
             ));
         }
     }
