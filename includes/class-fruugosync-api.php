@@ -104,21 +104,11 @@ public function get_categories($force_refresh = false) {
             }
         }
 
-        // API request configuration
-        $endpoint = 'https://product-api.fruugo.com/v1/products/all';
+        // Try alternative endpoint for categories
+        $endpoint = 'https://product-api.fruugo.com/v3/categories';
         
-        // Fix the filter structure according to the API spec
-        $request_body = array(
-            'filters' => array(
-                array(
-                    'type' => 'categoryFilter',
-                    'categories' => array() // Empty array to get all categories
-                )
-            )
-        );
-
         $args = array(
-            'method' => 'POST',
+            'method' => 'GET',  // Using GET for categories endpoint
             'timeout' => 120,
             'headers' => array(
                 'Authorization' => 'Basic ' . base64_encode($this->credentials['username'] . ':' . $this->credentials['password']),
@@ -126,7 +116,6 @@ public function get_categories($force_refresh = false) {
                 'Accept' => 'application/json',
                 'X-Correlation-ID' => 'fruugosync_' . uniqid()
             ),
-            'body' => wp_json_encode($request_body),
             'sslverify' => false
         );
 
@@ -151,32 +140,23 @@ public function get_categories($force_refresh = false) {
             error_log('FruugoSync Category Response Body: ' . $body);
         }
 
-        // Handle response code
-        if ($response_code !== 202 && $response_code !== 200) {
-            throw new Exception('API returned status code: ' . $response_code . ' with message: ' . $body);
+        if ($response_code !== 200) {
+            // If v3 fails, try the legacy category endpoint
+            $legacy_endpoint = 'https://www.fruugo.com/categories';
+            $legacy_response = wp_remote_get($legacy_endpoint, $args);
+            
+            if (is_wp_error($legacy_response)) {
+                throw new Exception($legacy_response->get_error_message());
+            }
+            
+            $legacy_body = wp_remote_retrieve_body($legacy_response);
+            $categories = json_decode($legacy_body, true);
+        } else {
+            $categories = json_decode($body, true);
         }
 
-        $data = json_decode($body, true);
-        
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new Exception('Invalid JSON response from API');
-        }
-
-        // If we get a webhook response with dataLocation
-        if (isset($data['dataLocation'])) {
-            // We need to fetch from the provided URL
-            $categories_response = wp_remote_get($data['dataLocation'], array(
-                'timeout' => 120,
-                'sslverify' => false
-            ));
-
-            if (is_wp_error($categories_response)) {
-                throw new Exception($categories_response->get_error_message());
-            }
-
-            $categories = json_decode(wp_remote_retrieve_body($categories_response), true);
-        } else {
-            $categories = $data;
         }
 
         // Cache the result
