@@ -1,46 +1,30 @@
 jQuery(document).ready(function($) {
-    $('#refresh-categories').on('click', function(e) {
-        e.preventDefault();
-        var button = $(this);
-        button.prop('disabled', true);
+    // Save category mapping
+    $('.fruugo-category-dropdown').on('change', function() {
+        var wcCategory = $(this).closest('tr').find('td:first').text();
+        var fruugoCategory = $(this).val();
 
-        $.ajax({
-            url: fruugosync_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'refresh_fruugo_categories',
-                nonce: fruugosync_ajax.nonce
-            },
-            success: function(response) {
-                if (response.success && response.data) {
-                    var $container = $('.ced_fruugo_cat_ul');
-                    $container.empty();
-                    
-                    response.data.forEach(function(category) {
-                        $container.append(
-                            '<li><a href="#" class="category-link">' + 
-                            category + 
-                            '</a></li>'
-                        );
-                    });
-                } else {
-                    $('.wrap').prepend(
-                        '<div class="notice notice-error">' +
-                        '<p>' + (response.data.message || 'Failed to load categories') + '</p>' +
-                        '</div>'
-                    );
+        if (fruugoCategory) {
+            $.ajax({
+                url: fruugosync_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'save_category_mapping',
+                    wc_category: wcCategory,
+                    fruugo_category: fruugoCategory,
+                    nonce: fruugosync_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Category mapping saved successfully!');
+                    } else {
+                        alert('Failed to save category mapping.');
+                    }
+                },
+                error: function() {
+                    alert('Error occurred while saving mapping.');
                 }
-            },
-            error: function() {
-                $('.wrap').prepend(
-                    '<div class="notice notice-error">' +
-                    '<p>Failed to refresh categories</p>' +
-                    '</div>'
-                );
-            },
-            complete: function() {
-                button.prop('disabled', false);
-            }
-        });
+            });
+        }
     });
 });

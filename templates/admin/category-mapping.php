@@ -1,5 +1,3 @@
-<?php if (!defined('ABSPATH')) exit; ?>
-
 <div class="wrap">
     <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
 
@@ -11,24 +9,31 @@
         <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
     </button>
 
-    <h2><?php _e('Root Categories', 'fruugosync'); ?></h2>
+    <h2><?php _e('Map WooCommerce Categories to Fruugo Categories', 'fruugosync'); ?></h2>
     
-    <div class="category-tree-container">
-        <ul class="ced_fruugo_cat_ul ced_fruugo_1lvl">
-            <?php if (!empty($root_categories)): ?>
-                <?php foreach ($root_categories as $category): ?>
-                    <li>
-                        <a href="#" class="category-link"><?php echo esc_html($category); ?></a>
-                    </li>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <li class="no-categories"><?php _e('No categories available', 'fruugosync'); ?></li>
-            <?php endif; ?>
-        </ul>
-    </div>
-
-    <div class="selected-categories-wrapper">
-        <h3><?php _e('Selected Categories', 'fruugosync'); ?></h3>
-        <div class="selected-categories-list"></div>
-    </div>
+    <table class="category-mapping-table">
+        <thead>
+            <tr>
+                <th><?php _e('WooCommerce Category', 'fruugosync'); ?></th>
+                <th><?php _e('Fruugo Category', 'fruugosync'); ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($woocommerce_categories as $wc_category): ?>
+                <tr>
+                    <td><?php echo esc_html($wc_category); ?></td>
+                    <td>
+                        <select class="fruugo-category-dropdown">
+                            <option value=""><?php _e('Select Fruugo Category', 'fruugosync'); ?></option>
+                            <?php foreach ($fruugo_categories as $fruugo_category): ?>
+                                <option value="<?php echo esc_attr($fruugo_category['id']); ?>">
+                                    <?php echo esc_html($fruugo_category['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>

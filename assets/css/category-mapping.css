@@ -1,69 +1,24 @@
-/* Base styles */
-.wrap {
-    margin: 20px 0;
-}
-
-/* Info box */
-.info-box {
-    border-left: 4px solid #00a0d2;
-    margin: 20px 0;
-    padding: 12px;
-    background: #fff;
-}
-
-/* Categories */
-.category-tree-container {
-    margin: 20px 0;
-    background: #fff;
-    padding: 20px;
-}
-
-.ced_fruugo_cat_ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.ced_fruugo_cat_ul li {
-    margin: 5px 0;
-    padding: 5px 0;
-}
-
-.category-link {
-    color: #0073aa;
-    text-decoration: none;
-    display: block;
-    padding: 5px;
-}
-
-.category-link:hover {
-    color: #00a0d2;
-}
-
-/* Selected Categories */
-.selected-categories-wrapper {
+.category-mapping-table {
+    width: 100%;
+    border-collapse: collapse;
     margin-top: 20px;
     background: #fff;
-    padding: 20px;
-    border: 1px solid #ddd;
 }
 
-.selected-categories-wrapper h3 {
-    margin-top: 0;
-}
-
-.selected-categories-list {
-    min-height: 50px;
-    border: 1px solid #ddd;
+.category-mapping-table th, .category-mapping-table td {
     padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
 }
 
-/* Refresh button */
-#refresh-categories {
-    margin: 10px 0;
+.category-mapping-table th {
+    background: #f1f1f1;
+    font-weight: bold;
 }
 
-/* Notice styles */
-.notice {
-    margin: 15px 0;
+.fruugo-category-dropdown {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
 }
