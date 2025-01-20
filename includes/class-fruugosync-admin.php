@@ -125,7 +125,7 @@ class FruugoSync_Admin {
         if (!current_user_can('manage_options')) {
             return;
         }
-
+    
         // Handle form submission
         if (isset($_POST['fruugosync_settings_submit'])) {
             check_admin_referer('fruugosync_settings');
@@ -139,6 +139,10 @@ class FruugoSync_Admin {
             // Test connection with new credentials
             $test_result = $this->api->test_connection();
             if ($test_result['success']) {
+                update_option('fruugosync_api_status', array(
+                    'status' => 'connected',
+                    'error' => ''
+                ));
                 add_settings_error(
                     'fruugosync_messages',
                     'connection_success',
@@ -146,21 +150,36 @@ class FruugoSync_Admin {
                     'success'
                 );
             } else {
+                $error_message = is_string($test_result['message']) ? 
+                    $test_result['message'] : __('Connection failed', 'fruugosync');
+                
+                update_option('fruugosync_api_status', array(
+                    'status' => 'disconnected',
+                    'error' => $error_message
+                ));
+                
                 add_settings_error(
                     'fruugosync_messages',
                     'connection_failed',
-                    sprintf(__('Settings saved but connection failed: %s', 'fruugosync'), $test_result['message']),
+                    sprintf(__('Settings saved but connection failed: %s', 'fruugosync'), $error_message),
                     'error'
                 );
             }
         }
-
+    
         // Get current settings and status
-        $api_status = $this->settings->get('fruugosync_api_status', array(
+        $api_status = get_option('fruugosync_api_status', array(
             'status' => 'unknown',
             'error' => ''
         ));
-
+    
+        if (!is_array($api_status)) {
+            $api_status = array(
+                'status' => 'unknown',
+                'error' => ''
+            );
+        }
+    
         // Include template
         require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/settings-page.php';
     }
@@ -179,20 +198,12 @@ public function render_category_mapping_page() {
         return;
     }
 
-    // First check if credentials are configured
-    $credentials = $this->api->get_credentials();
-    if (empty($credentials['username']) || empty($credentials['password'])) {
-        echo '<div class="wrap">';
-        echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
-        echo '<div class="notice notice-error"><p>' . 
-             __('Please configure and test your API connection before mapping categories.', 'fruugosync') . 
-             '</p></div>';
-        echo '</div>';
-        return;
-    }
+    // Check API status
+    $api_status = get_option('fruugosync_api_status', array(
+        'status' => 'unknown',
+        'error' => ''
+    ));
 
-    // Check API connection status
-    $api_status = $this->settings->get('fruugosync_api_status');
     if (!is_array($api_status)) {
         $api_status = array(
             'status' => 'unknown',
@@ -201,20 +212,15 @@ public function render_category_mapping_page() {
     }
 
     if ($api_status['status'] !== 'connected') {
-        // Test connection again just to be sure
-        $test_result = $this->api->test_connection();
-        if (!$test_result['success']) {
-            echo '<div class="wrap">';
-            echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
-            echo '<div class="notice notice-error"><p>' . 
-                 __('Please test your API connection before mapping categories.', 'fruugosync') . 
-                 '</p></div>';
-            echo '</div>';
-            return;
-        }
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html(get_admin_page_title()) . '</h1>';
+        echo '<div class="notice notice-error"><p>' . 
+             __('Please test your API connection before mapping categories.', 'fruugosync') . 
+             '</p></div>';
+        echo '</div>';
+        return;
     }
 
-    // Get WooCommerce categories
     $woo_categories = get_terms(array(
         'taxonomy' => 'product_cat',
         'hide_empty' => false
@@ -223,10 +229,6 @@ public function render_category_mapping_page() {
     // Get Fruugo categories with error handling
     $fruugo_categories = $this->api->get_categories();
     $current_mappings = $this->settings->get_category_mappings();
-
-    if (!$fruugo_categories['success']) {
-        $this->last_error = $fruugo_categories['message'];
-    }
 
     // Include template
     require_once FRUUGOSYNC_TEMPLATES_PATH . 'admin/category-mapping.php';
