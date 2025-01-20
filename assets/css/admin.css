@@ -218,3 +218,35 @@
     padding: 5px;
     border-bottom: 1px solid #eee;
 }
+
+.ced_fruugo_cat_ul {
+    list-style: none;
+    padding-left: 20px;
+}
+
+.ced_fruugo_expand_fruugocat {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 5px;
+}
+
+.ced_fruugo_category_loader {
+    margin-left: 10px;
+    display: none;
+}
+
+.loading .ced_fruugo_category_loader {
+    display: inline;
+}
+
+.selected-categories-wrapper {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+}
+
+.notice {
+    margin: 15px 0;
+}

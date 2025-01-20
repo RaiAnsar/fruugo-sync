@@ -11,28 +11,29 @@ if (!defined('ABSPATH')) {
     </div>
 
     <div class="fruugosync-category-mapping">
-        <button type="button" id="refresh-categories" class="button">
-            <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
-        </button>
-
-        <div class="loading-indicator" style="display: none;">
-            <span class="spinner is-active"></span>
-            <?php _e('Loading categories...', 'fruugosync'); ?>
+        <div class="actions-bar">
+            <button type="button" id="refresh-categories" class="button">
+                <?php _e('Refresh Fruugo Categories', 'fruugosync'); ?>
+            </button>
         </div>
 
-        <div id="category-error" class="notice notice-error" style="display: none;">
-            <p></p>
-        </div>
+        <?php if (!empty($errors)): ?>
+            <div class="notice notice-error">
+                <p><?php echo esc_html($errors); ?></p>
+            </div>
+        <?php endif; ?>
 
         <div class="category-tree-container">
-            <ul class="ced_fruugo_cat_ul ced_fruugo_1lvl"></ul>
+            <ul class="ced_fruugo_cat_ul ced_fruugo_1lvl">
+                <h1>Root Categories</h1>
+            </ul>
             <ul class="ced_fruugo_cat_ul ced_fruugo_2lvl"></ul>
             <ul class="ced_fruugo_cat_ul ced_fruugo_3lvl"></ul>
             <ul class="ced_fruugo_cat_ul ced_fruugo_4lvl"></ul>
             <ul class="ced_fruugo_cat_ul ced_fruugo_5lvl"></ul>
         </div>
 
-        <div id="selected-categories" style="margin-top: 20px;">
+        <div class="selected-categories-wrapper">
             <h3><?php _e('Selected Categories', 'fruugosync'); ?></h3>
             <div class="selected-categories-list"></div>
         </div>
